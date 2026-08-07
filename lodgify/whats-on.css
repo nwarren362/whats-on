@@ -19,7 +19,7 @@
 .whats-on {
   width: min(100% - 2rem, 63rem);
   margin-inline: auto;
-  padding-block: 2.75rem 4rem;
+  padding-block: 0 4rem;
 }
 
 .whats-on__intro { max-width: 43rem; margin-bottom: 2rem; }
@@ -94,7 +94,7 @@
   justify-content: center;
   padding: 0.7rem 1.5rem;
   border-radius: 999px;
-  color: #000;
+  color: #000 !important;
   background: var(--jasmin-pink);
   font-size: 1rem;
   font-weight: 400;
@@ -102,7 +102,11 @@
 }
 
 .event-card__link:hover,
-.event-card__link:focus-visible { background: var(--jasmin-pink-dark); }
+.event-card__link:focus-visible {
+  color: #000 !important;
+  background: var(--jasmin-pink-dark);
+  text-decoration: none !important;
+}
 
 .event-card__link:focus-visible {
   outline: 3px solid rgb(40 188 174 / 45%);
@@ -119,7 +123,6 @@
 .feed-message--error { color: #7a2525; background: #fff0f0; }
 
 @media (min-width: 44rem) {
-  .whats-on { padding-block-start: 4rem; }
   .event-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1.5rem;
