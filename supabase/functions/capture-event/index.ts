@@ -13,9 +13,8 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
 }
 
-function getBearerToken(request: Request) {
-  const authorization = request.headers.get("Authorization") ?? "";
-  return authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+function getCaptureToken(request: Request) {
+  return request.headers.get("X-Capture-Token") ?? "";
 }
 
 function parsePublicUrl(value: unknown) {
@@ -35,7 +34,7 @@ Deno.serve(async (request) => {
   }
 
   const captureToken = Deno.env.get("CAPTURE_TOKEN");
-  if (!captureToken || getBearerToken(request) !== captureToken) {
+  if (!captureToken || getCaptureToken(request) !== captureToken) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
