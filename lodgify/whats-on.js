@@ -4,6 +4,8 @@
   const feed = document.getElementById("jasmin-events");
   if (!feed) return;
 
+  const PRIMARY_WINDOW_DAYS = 28;
+
   const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
     timeZone: "Europe/Paris",
     weekday: "long",
@@ -111,6 +113,30 @@
     ));
   }
 
+  function isInPrimaryWindow(event) {
+    if (event.featured || !event.start_at) return true;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() + PRIMARY_WINDOW_DAYS);
+    cutoff.setHours(23, 59, 59, 999);
+    return new Date(event.start_at) <= cutoff;
+  }
+
+  function createLaterEvents(events) {
+    const section = document.createElement("details");
+    section.className = "later-events";
+
+    const summary = document.createElement("summary");
+    summary.className = "later-events__summary";
+    summary.textContent = `Voir les événements à venir plus tard (${events.length})`;
+    section.appendChild(summary);
+
+    const grid = document.createElement("div");
+    grid.className = "later-events__grid";
+    grid.append(...events.map(createEventCard));
+    section.appendChild(grid);
+    return section;
+  }
+
   async function loadEvents() {
     try {
       const fields = [
@@ -135,7 +161,19 @@
         return;
       }
 
-      feed.replaceChildren(...events.map(createEventCard));
+      const primaryEvents = events.filter(isInPrimaryWindow);
+      const laterEvents = events.filter(event => !isInPrimaryWindow(event));
+      const content = primaryEvents.map(createEventCard);
+
+      if (!primaryEvents.length) {
+        content.push(createTextElement(
+          "p",
+          "feed-message",
+          `Aucun événement n’est publié dans les ${PRIMARY_WINDOW_DAYS} prochains jours.`
+        ));
+      }
+      if (laterEvents.length) content.push(createLaterEvents(laterEvents));
+      feed.replaceChildren(...content);
     } catch (error) {
       console.error("Impossible de charger le flux Jasmin Cottage.", error);
       showMessage("Les événements ne peuvent pas être chargés pour le moment.", true);
