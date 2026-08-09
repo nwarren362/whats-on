@@ -1,2 +1,5 @@
 [functions.capture-event]
 verify_jwt = false
+
+[functions.manage-events]
+verify_jwt = false

@@ -1,0 +1,50 @@
+<div id="jasmin-admin">
+  <section class="ja-login" data-ja-login>
+    <p class="ja-eyebrow">Espace privé</p>
+    <h1>Agenda Jasmin Cottage</h1>
+    <p>Saisissez votre code privé pour gérer les événements.</p>
+    <form data-ja-login-form>
+      <label for="ja-token">Code privé</label>
+      <input id="ja-token" type="password" autocomplete="current-password" required>
+      <p class="ja-message" data-ja-login-message></p>
+      <button type="submit">Ouvrir l’agenda</button>
+    </form>
+  </section>
+
+  <section class="ja-app" data-ja-app hidden>
+    <header class="ja-top">
+      <div><p class="ja-eyebrow">Espace privé</p><h1>Agenda Jasmin Cottage</h1></div>
+      <button class="ja-secondary" type="button" data-ja-logout>Déconnexion</button>
+    </header>
+    <p>Ouvrez un brouillon, complétez-le puis choisissez « Publié » pour l’afficher sur le site.</p>
+    <nav class="ja-filters" data-ja-filters></nav>
+    <p data-ja-loading>Chargement…</p>
+    <div class="ja-list" data-ja-list></div>
+  </section>
+
+  <dialog class="ja-editor" data-ja-editor>
+    <form data-ja-form>
+      <header class="ja-editor-head">
+        <div><p class="ja-eyebrow">Modifier l’événement</p><h2 data-ja-form-title></h2></div>
+        <button class="ja-close" type="button" data-ja-close aria-label="Fermer">×</button>
+      </header>
+      <div class="ja-fields">
+        <div class="ja-wide"><label for="ja-title">Titre *</label><input id="ja-title" required maxlength="200"></div>
+        <div class="ja-wide"><label for="ja-description">Description</label><textarea id="ja-description" maxlength="3000"></textarea></div>
+        <div><label for="ja-start_at">Début</label><input id="ja-start_at" type="datetime-local"></div>
+        <div><label for="ja-end_at">Fin</label><input id="ja-end_at" type="datetime-local"></div>
+        <div><label for="ja-expires_at">Masquer après</label><input id="ja-expires_at" type="datetime-local"></div>
+        <div><label for="ja-location_name">Lieu</label><input id="ja-location_name" maxlength="200"></div>
+        <div><label for="ja-category_id">Catégorie *</label><select id="ja-category_id" required></select></div>
+        <div><label for="ja-status_id">Statut *</label><select id="ja-status_id" required></select></div>
+        <div class="ja-wide"><label for="ja-source_url">Lien d’origine</label><div class="ja-link-row"><input id="ja-source_url" type="url"><a data-ja-open-source target="_blank" rel="noopener">Ouvrir</a></div></div>
+        <div class="ja-wide"><label for="ja-image_url">Lien de l’image (facultatif)</label><input id="ja-image_url" type="url"></div>
+        <div class="ja-wide ja-check"><input id="ja-featured" type="checkbox"><label for="ja-featured">Mettre en avant</label></div>
+        <div class="ja-wide"><label for="ja-editor_note">Note privée</label><textarea id="ja-editor_note" maxlength="1000"></textarea></div>
+      </div>
+      <p class="ja-message" data-ja-form-message></p>
+      <footer class="ja-actions"><button class="ja-danger" type="button" data-ja-archive>Archiver</button><button type="submit">Enregistrer</button></footer>
+    </form>
+  </dialog>
+  <div class="ja-toast" data-ja-toast role="status"></div>
+</div>

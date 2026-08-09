@@ -61,6 +61,7 @@
       image.src = event.image_url;
       image.alt = "";
       image.loading = "lazy";
+      image.addEventListener("error", () => image.remove(), { once: true });
       article.appendChild(image);
     }
 
