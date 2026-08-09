@@ -110,7 +110,7 @@ Deno.serve(async (request) => {
     const [eventsResult, categoriesResult, statusesResult] = await Promise.all([
       supabase
         .from("events")
-        .select("id,title,description,start_at,end_at,expires_at,location_name,category_id,status_id,source_url,image_url,featured,editor_note,created_at,updated_at,categories(name,slug),statuses(name,slug)")
+        .select("id,title,description,start_at,end_at,expires_at,recurrence_frequency,recurrence_until,location_name,category_id,status_id,source_url,image_url,featured,editor_note,created_at,updated_at,categories(name,slug),statuses(name,slug)")
         .order("created_at", { ascending: false }),
       supabase.from("categories").select("id,name,slug,sort_order").eq("is_active", true).order("sort_order"),
       supabase.from("statuses").select("id,name,slug,sort_order").order("sort_order"),
@@ -153,14 +153,35 @@ Deno.serve(async (request) => {
     const startAt = nullableTimestamp(body.start_at);
     const endAt = nullableTimestamp(body.end_at);
     const expiresAt = nullableTimestamp(body.expires_at);
+    const recurrenceUntil = nullableTimestamp(body.recurrence_until);
+    const recurrenceFrequency = body.recurrence_frequency === "weekly" ? "weekly" :
+      body.recurrence_frequency === "none" ? "none" : undefined;
     const categoryId = typeof body.category_id === "string" ? body.category_id : "";
     const statusId = typeof body.status_id === "string" ? body.status_id : "";
 
     if (!title || description === undefined || locationName === undefined ||
       sourceUrl === undefined || imageUrl === undefined || editorNote === undefined ||
       startAt === undefined || endAt === undefined || expiresAt === undefined ||
+      recurrenceUntil === undefined || recurrenceFrequency === undefined ||
       !UUID_PATTERN.test(categoryId) || !UUID_PATTERN.test(statusId)) {
       return json({ error: "Veuillez vérifier les champs du formulaire" }, 400);
+    }
+
+    if (endAt && startAt && new Date(endAt) <= new Date(startAt)) {
+      return json({ error: "La date de fin doit être après la date de début" }, 400);
+    }
+    if (recurrenceFrequency === "weekly" && (!startAt || !recurrenceUntil)) {
+      return json({ error: "Une série hebdomadaire nécessite une date de début et une dernière occurrence" }, 400);
+    }
+    if (recurrenceFrequency === "weekly" && new Date(recurrenceUntil!) < new Date(startAt!)) {
+      return json({ error: "La dernière occurrence doit être après la première" }, 400);
+    }
+
+    let effectiveExpiry = expiresAt;
+    if (recurrenceFrequency === "weekly") {
+      const firstStart = new Date(startAt!).valueOf();
+      const firstEnd = endAt ? new Date(endAt).valueOf() : firstStart + 86_400_000;
+      effectiveExpiry = new Date(new Date(recurrenceUntil!).valueOf() + (firstEnd - firstStart)).toISOString();
     }
 
     for (const candidate of [sourceUrl, imageUrl]) {
@@ -181,7 +202,9 @@ Deno.serve(async (request) => {
         description,
         start_at: startAt,
         end_at: endAt,
-        expires_at: expiresAt,
+        expires_at: effectiveExpiry,
+        recurrence_frequency: recurrenceFrequency,
+        recurrence_until: recurrenceFrequency === "weekly" ? recurrenceUntil : null,
         location_name: locationName,
         category_id: categoryId,
         status_id: statusId,

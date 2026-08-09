@@ -15,7 +15,8 @@
 
   const API = "https://jrluybdxwzyyrinfrbly.supabase.co/functions/v1/manage-events";
   const TOKEN_KEY = "jasmin_capture_token";
-  const fields = ["title","description","start_at","end_at","expires_at","location_name","category_id","status_id","source_url","image_url","featured","editor_note"];
+  const fields = ["title","description","start_at","end_at","recurrence_frequency","recurrence_until","expires_at","location_name","category_id","status_id","source_url","image_url","featured","editor_note"];
+  const timestampFields = ["start_at","end_at","recurrence_until","expires_at"];
   let token = sessionStorage.getItem(TOKEN_KEY) || "";
   let state = { events: [], categories: [], statuses: [], filter: "draft", current: null };
   const $ = selector => root.querySelector(selector);
@@ -48,10 +49,12 @@
   function openEditor(id) {
     const event=state.events.find(item=>item.id===id); if(!event)return; state.current=event;
     $("[data-ja-form-title]").textContent=event.title;
-    fields.forEach(name=>{const element=$("#ja-"+name);if(name==="featured")element.checked=!!event[name];else if(["start_at","end_at","expires_at"].includes(name))element.value=toLocal(event[name]);else element.value=event[name]??"";});
+    fields.forEach(name=>{const element=$("#ja-"+name);if(name==="featured")element.checked=!!event[name];else if(timestampFields.includes(name))element.value=toLocal(event[name]);else if(name==="recurrence_frequency")element.value=event[name]||"none";else element.value=event[name]??"";});
+    updateRecurrenceFields();
     $("[data-ja-open-source]").href=event.source_url||"#"; $("[data-ja-open-source]").hidden=!event.source_url; $("[data-ja-form-message]").textContent=""; $("[data-ja-editor]").showModal();
   }
-  function payload(){const data={};fields.forEach(name=>{const element=$("#ja-"+name);data[name]=name==="featured"?element.checked:["start_at","end_at","expires_at"].includes(name)?toIso(element.value):element.value.trim();});return data;}
+  function payload(){const data={};fields.forEach(name=>{const element=$("#ja-"+name);data[name]=name==="featured"?element.checked:timestampFields.includes(name)?toIso(element.value):element.value.trim();});if(data.recurrence_frequency==="none")data.recurrence_until=null;return data;}
+  function updateRecurrenceFields(){const weekly=$("#ja-recurrence_frequency").value==="weekly";$("[data-ja-recurrence-until]").hidden=!weekly;$("#ja-recurrence_until").required=weekly;}
   async function save(){const message=$("[data-ja-form-message]");message.textContent="Enregistrement…";try{const data=await api("/api/events/"+state.current.id,{method:"PATCH",body:JSON.stringify(payload())});message.textContent="";$("[data-ja-editor]").close();showToast(data.message);await load();}catch(error){message.textContent=error.message;}}
   async function signIn(candidate){token=candidate;await load();sessionStorage.setItem(TOKEN_KEY,token);$("[data-ja-login]").hidden=true;$("[data-ja-app]").hidden=false;}
 
@@ -62,6 +65,7 @@
   $("[data-ja-close]").addEventListener("click",()=>$("[data-ja-editor]").close());
   $("[data-ja-form]").addEventListener("submit",event=>{event.preventDefault();save();});
   $("#ja-source_url").addEventListener("input",event=>{$("[data-ja-open-source]").href=event.target.value||"#";$("[data-ja-open-source]").hidden=!event.target.value;});
+  $("#ja-recurrence_frequency").addEventListener("change",updateRecurrenceFields);
   $("[data-ja-archive]").addEventListener("click",()=>{const archived=state.statuses.find(item=>item.slug==="archived");if(archived){$("#ja-status_id").value=archived.id;save();}});
   if(token) signIn(token).catch(()=>sessionStorage.removeItem(TOKEN_KEY));
 })();

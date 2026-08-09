@@ -60,12 +60,70 @@
 
 .event-card--featured { border-top: 4px solid var(--jasmin-pink); }
 
+.event-card__image-button {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  min-height: 0;
+  color: inherit;
+  background: var(--jasmin-soft);
+  cursor: zoom-in;
+  font-size: 0;
+  line-height: 0;
+}
+
+.event-card__image-button:focus-visible {
+  outline: 3px solid var(--jasmin-teal);
+  outline-offset: -3px;
+}
+
 .event-card__image {
   display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: contain;
   background: var(--jasmin-soft);
+}
+
+.event-lightbox {
+  width: auto;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+  padding: 2.75rem 0 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.event-lightbox::backdrop { background: rgb(0 0 0 / 82%); }
+
+.event-lightbox__image {
+  display: block;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100dvh - 5rem);
+  object-fit: contain;
+  background: #fff;
+}
+
+.event-lightbox__close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: rgb(0 0 0 / 70%);
+  cursor: pointer;
+  font-size: 2rem;
+  line-height: 1;
 }
 
 .event-card__content { padding: 1.25rem; }

@@ -19,6 +19,11 @@
     minute: "2-digit"
   });
 
+  const weekdayFormatter = new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Europe/Paris",
+    weekday: "long"
+  });
+
   function formatEventDate(startAt, endAt) {
     if (!startAt) return "Date à confirmer";
 
@@ -45,11 +50,73 @@
     return label.charAt(0).toUpperCase() + label.slice(1);
   }
 
+  function formatEventSchedule(event) {
+    if (event.recurrence_frequency !== "weekly" || !event.start_at || !event.recurrence_until) {
+      return formatEventDate(event.start_at, event.end_at);
+    }
+
+    const start = new Date(event.start_at);
+    const weekday = weekdayFormatter.format(start);
+    let label = `Tous les ${weekday}s`;
+    const localTime = start.toLocaleTimeString("fr-FR", {
+      timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit"
+    });
+    if (localTime !== "00:00") label += ` à ${timeFormatter.format(start)}`;
+    if (event.end_at) label += `–${timeFormatter.format(new Date(event.end_at))}`;
+    label += ` jusqu’au ${dateFormatter.format(new Date(event.recurrence_until))}`;
+    return label;
+  }
+
+  function nextOccurrence(event, now = new Date()) {
+    if (!event.start_at) return null;
+    const first = new Date(event.start_at);
+    if (event.recurrence_frequency !== "weekly" || !event.recurrence_until || now <= first) return first;
+
+    const week = 7 * 24 * 60 * 60 * 1_000;
+    const duration = event.end_at
+      ? Math.max(new Date(event.end_at).valueOf() - first.valueOf(), 0)
+      : 24 * 60 * 60 * 1_000;
+    const completedWeeks = Math.floor((now.valueOf() - first.valueOf()) / week);
+    const current = new Date(first.valueOf() + completedWeeks * week);
+    const next = now.valueOf() <= current.valueOf() + duration
+      ? current
+      : new Date(current.valueOf() + week);
+    return next <= new Date(event.recurrence_until) ? next : null;
+  }
+
   function createTextElement(tag, className, text) {
     const element = document.createElement(tag);
     element.className = className;
     element.textContent = text;
     return element;
+  }
+
+  function openImageLightbox(source, title) {
+    let dialog = document.querySelector(".event-lightbox");
+    if (!dialog) {
+      dialog = document.createElement("dialog");
+      dialog.className = "event-lightbox";
+
+      const close = document.createElement("button");
+      close.type = "button";
+      close.className = "event-lightbox__close";
+      close.textContent = "×";
+      close.setAttribute("aria-label", "Fermer l’image agrandie");
+      close.addEventListener("click", () => dialog.close());
+
+      const enlarged = document.createElement("img");
+      enlarged.className = "event-lightbox__image";
+      dialog.append(close, enlarged);
+      dialog.addEventListener("click", event => {
+        if (event.target === dialog) dialog.close();
+      });
+      document.body.appendChild(dialog);
+    }
+
+    const enlarged = dialog.querySelector(".event-lightbox__image");
+    enlarged.src = source;
+    enlarged.alt = `Affiche agrandie : ${title}`;
+    dialog.showModal();
   }
 
   function createEventCard(event) {
@@ -58,13 +125,20 @@
     if (event.featured) article.classList.add("event-card--featured");
 
     if (event.image_url) {
+      const imageButton = document.createElement("button");
+      imageButton.type = "button";
+      imageButton.className = "event-card__image-button";
+      imageButton.setAttribute("aria-label", `Agrandir l’affiche de ${event.title}`);
+
       const image = document.createElement("img");
       image.className = "event-card__image";
       image.src = event.image_url;
-      image.alt = "";
+      image.alt = `Affiche : ${event.title}`;
       image.loading = "lazy";
-      image.addEventListener("error", () => image.remove(), { once: true });
-      article.appendChild(image);
+      image.addEventListener("error", () => imageButton.remove(), { once: true });
+      imageButton.addEventListener("click", () => openImageLightbox(event.image_url, event.title));
+      imageButton.appendChild(image);
+      article.appendChild(imageButton);
     }
 
     const content = document.createElement("div");
@@ -80,8 +154,9 @@
     const details = document.createElement("p");
     details.className = "event-card__details";
     const date = document.createElement("time");
-    date.dateTime = event.start_at || "";
-    date.textContent = formatEventDate(event.start_at, event.end_at);
+    const nextDate = nextOccurrence(event);
+    date.dateTime = nextDate?.toISOString() || event.start_at || "";
+    date.textContent = formatEventSchedule(event);
     details.appendChild(date);
     if (event.location_name) details.append(" · ", event.location_name);
     content.appendChild(details);
@@ -118,7 +193,8 @@
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() + PRIMARY_WINDOW_DAYS);
     cutoff.setHours(23, 59, 59, 999);
-    return new Date(event.start_at) <= cutoff;
+    const next = nextOccurrence(event);
+    return next !== null && next <= cutoff;
   }
 
   function createLaterEvents(events) {
@@ -141,7 +217,8 @@
     try {
       const fields = [
         "title", "description", "start_at", "end_at", "location_name",
-        "source_url", "image_url", "featured", "categories(name,slug)"
+        "source_url", "image_url", "featured", "recurrence_frequency",
+        "recurrence_until", "categories(name,slug)"
       ].join(",");
       const response = await fetch(
         `${SUPABASE_URL}/rest/v1/events?select=${fields}&order=featured.desc,start_at.asc`,
@@ -155,6 +232,13 @@
 
       if (!response.ok) throw new Error(`Supabase returned ${response.status}`);
       const events = await response.json();
+
+      events.sort((left, right) => {
+        if (left.featured !== right.featured) return left.featured ? -1 : 1;
+        const leftDate = nextOccurrence(left)?.valueOf() ?? Number.MAX_SAFE_INTEGER;
+        const rightDate = nextOccurrence(right)?.valueOf() ?? Number.MAX_SAFE_INTEGER;
+        return leftDate - rightDate;
+      });
 
       if (!events.length) {
         showMessage("Aucun événement n’est publié pour le moment.", false);
