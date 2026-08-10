@@ -11,9 +11,16 @@
 #jasmin-admin small { display:block; margin-top:4px; color:var(--ja-muted); font-size:12px; }
 #jasmin-admin input,#jasmin-admin select,#jasmin-admin textarea { width:100%; border:1px solid #bdbdbd; border-radius:6px; background:#fff; color:#343434; padding:11px 12px; }
 #jasmin-admin textarea { min-height:110px; resize:vertical; }
+#jasmin-admin .ja-remember { display:flex; align-items:center; gap:8px; margin-top:10px; }
+#jasmin-admin .ja-remember input { width:auto; }
+#jasmin-admin .ja-remember label { margin:0; }
 #jasmin-admin input:focus,#jasmin-admin select:focus,#jasmin-admin textarea:focus { outline:3px solid rgb(9 151 143 / .18); border-color:var(--ja-teal); }
 #jasmin-admin .ja-message { min-height:24px; color:#8a2727; }
 #jasmin-admin .ja-top { display:flex; align-items:flex-start; justify-content:space-between; gap:15px; }
+#jasmin-admin .ja-bookmarklet-help { margin:18px 0; padding:14px 16px; border-left:4px solid var(--ja-teal); background:#f1f8f7; }
+#jasmin-admin .ja-bookmarklet-help p { margin:0 0 10px; }
+#jasmin-admin .ja-bookmarklet { display:inline-flex; min-height:40px; align-items:center; padding:8px 15px; border-radius:20px; color:#fff !important; background:var(--ja-teal); font-weight:700; text-decoration:none !important; cursor:grab; }
+#jasmin-admin .ja-bookmarklet:active { cursor:grabbing; }
 #jasmin-admin .ja-filters { display:flex; gap:8px; overflow:auto; margin:22px 0 18px; }
 #jasmin-admin .ja-filter { white-space:nowrap; border:1px solid var(--ja-line); background:#fff; color:#343434; font-weight:400; }
 #jasmin-admin .ja-filter.active { border-color:var(--ja-teal); background:var(--ja-teal); color:#fff; }

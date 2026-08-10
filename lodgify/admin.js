@@ -14,10 +14,11 @@
   document.head.appendChild(robots);
 
   const API = "https://jrluybdxwzyyrinfrbly.supabase.co/functions/v1/manage-events";
+  const CAPTURE_API = "https://jrluybdxwzyyrinfrbly.supabase.co/functions/v1/capture-event";
   const TOKEN_KEY = "jasmin_capture_token";
   const fields = ["title","description","start_at","end_at","recurrence_frequency","recurrence_until","expires_at","location_name","category_id","status_id","source_url","image_url","featured","editor_note"];
   const timestampFields = ["start_at","end_at","recurrence_until","expires_at"];
-  let token = sessionStorage.getItem(TOKEN_KEY) || "";
+  let token = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || "";
   let state = { events: [], categories: [], statuses: [], filter: "draft", current: null };
   const $ = selector => root.querySelector(selector);
   const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, character => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[character]);
@@ -32,6 +33,41 @@
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Une erreur est survenue");
     return data;
+  }
+
+  async function capturePrefill() {
+    const params=new URLSearchParams(location.hash.replace(/^#/,""));if(params.get("capture")!=="1")return;
+    const payload={source_url:params.get("source_url")||"",title:params.get("title")||"",description:params.get("description")||"",image_url:params.get("image_url")||"",start_at:params.get("start_at")||"",end_at:params.get("end_at")||"",location_name:params.get("location_name")||""};
+    if(!payload.source_url)return;
+    showToast("Création du brouillon…");
+    const response=await fetch(CAPTURE_API,{method:"POST",headers:{"Content-Type":"application/json","X-Capture-Token":token},body:JSON.stringify(payload)});
+    const data=await response.json();if(!response.ok)throw new Error(data.error||"Impossible de créer le brouillon");
+    history.replaceState({},document.title,location.pathname+location.search);
+    await load();state.filter="draft";render();openEditor(data.id);showToast(data.duplicate?"Ce lien existait déjà.":"Brouillon créé.");
+  }
+
+  function desktopCaptureBookmarklet(){
+    const editor="https://npreview-jasmin-cottage-montayral.lodgify.com/fr/gestion-agenda";
+    const meta=selector=>document.querySelector(selector)?.content?.trim()||"";
+    const selection=getSelection()?.toString().trim().slice(0,3000)||"";
+    const anchor=getSelection()?.anchorNode;
+    const element=anchor?.nodeType===1?anchor:anchor?.parentElement;
+    const article=element?.closest('[role="article"],article')||document.querySelector('[role="article"],article')||document.body;
+    const links=[...article.querySelectorAll("a[href]")].map(link=>link.href);
+    const postPattern=/\/groups\/[^/]+\/(?:posts|permalink)\/|\/posts\/\d+|permalink\.php|story_fbid=/i;
+    const source=postPattern.test(location.href)?location.href:links.find(link=>postPattern.test(link))||location.href;
+    const media=[...new Set(article.querySelectorAll('[data-visualcompletion="media-vc-image"],img[src*="scontent"],img[src]'))];
+    const images=media.map(image=>({source:image.currentSrc||image.src,area:Math.max(image.naturalWidth,image.width)*Math.max(image.naturalHeight,image.height),width:Math.max(image.naturalWidth,image.width),height:Math.max(image.naturalHeight,image.height),preferred:image.matches('[data-visualcompletion="media-vc-image"],img[src*="scontent"]')})).filter(image=>/^https?:/i.test(image.source)&&image.width>=120&&image.height>=120).sort((left,right)=>(Number(right.preferred)-Number(left.preferred))||(right.area-left.area));
+    const backgrounds=[...article.querySelectorAll('[style*="background-image"]')].map(node=>getComputedStyle(node).backgroundImage.match(/url\(["']?(https?:[^"')]+)/i)?.[1]).filter(Boolean);
+    const normalized=selection.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+    const months={janvier:0,fevrier:1,mars:2,avril:3,mai:4,juin:5,juillet:6,aout:7,septembre:8,octobre:9,novembre:10,decembre:11};
+    const dateMatch=normalized.match(/(?:lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)?\s*(\d{1,2})(?:er)?\s+(janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|decembre)(?:\s+(\d{4}))?/i);
+    const timeMatch=normalized.match(/(?:\ba\s+)?(\d{1,2})\s*(?:h|:)\s*(\d{0,2})/i);
+    let start="";
+    if(dateMatch){const now=new Date(),year=dateMatch[3]?Number(dateMatch[3]):now.getFullYear(),date=new Date(year,months[dateMatch[2]],Number(dateMatch[1]),timeMatch?Number(timeMatch[1]):0,timeMatch&&timeMatch[2]?Number(timeMatch[2]):0);if(!dateMatch[3]&&date<new Date(now.valueOf()-14*86400000))date.setFullYear(year+1);start=date.toISOString()}
+    const selectedTitle=selection.split(/\r?\n/).map(line=>line.trim()).find(Boolean)||"";
+    const params=new URLSearchParams({capture:"1",source_url:source,title:(selectedTitle||meta('meta[property="og:title"]')||meta('meta[name="twitter:title"]')||document.title).slice(0,200),description:(selection||meta('meta[property="og:description"]')||meta('meta[name="description"]')||meta('meta[name="twitter:description"]')).slice(0,3000),image_url:images[0]?.source||backgrounds[0]||meta('meta[property="og:image"]')||meta('meta[name="twitter:image"]'),start_at:start});
+    open(editor+"#"+params,"jasmin-capture","popup=yes,width=760,height=900,resizable=yes,scrollbars=yes");
   }
 
   function setOptions(selector, items) { $(selector).innerHTML = items.map(item=>'<option value="'+item.id+'">'+escapeHtml(item.name)+'</option>').join(""); }
@@ -56,17 +92,18 @@
   function payload(){const data={};fields.forEach(name=>{const element=$("#ja-"+name);data[name]=name==="featured"?element.checked:timestampFields.includes(name)?toIso(element.value):element.value.trim();});if(data.recurrence_frequency==="none")data.recurrence_until=null;return data;}
   function updateRecurrenceFields(){const weekly=$("#ja-recurrence_frequency").value==="weekly";$("[data-ja-recurrence-until]").hidden=!weekly;$("#ja-recurrence_until").required=weekly;}
   async function save(){const message=$("[data-ja-form-message]");message.textContent="Enregistrement…";try{const data=await api("/api/events/"+state.current.id,{method:"PATCH",body:JSON.stringify(payload())});message.textContent="";$("[data-ja-editor]").close();showToast(data.message);await load();}catch(error){message.textContent=error.message;}}
-  async function signIn(candidate){token=candidate;await load();sessionStorage.setItem(TOKEN_KEY,token);$("[data-ja-login]").hidden=true;$("[data-ja-app]").hidden=false;}
+  async function signIn(candidate){token=candidate;await load();if($("#ja-remember")?.checked)localStorage.setItem(TOKEN_KEY,token);else sessionStorage.setItem(TOKEN_KEY,token);$("[data-ja-login]").hidden=true;$("[data-ja-app]").hidden=false;capturePrefill().catch(error=>showToast(error.message));}
 
   $("[data-ja-login-form]").addEventListener("submit",async event=>{event.preventDefault();const message=$("[data-ja-login-message]");message.textContent="Connexion…";try{await signIn($("#ja-token").value);message.textContent="";}catch(error){token="";message.textContent="Code incorrect ou connexion impossible.";}});
-  $("[data-ja-logout]").addEventListener("click",()=>{sessionStorage.removeItem(TOKEN_KEY);location.reload();});
+  $("[data-ja-logout]").addEventListener("click",()=>{localStorage.removeItem(TOKEN_KEY);sessionStorage.removeItem(TOKEN_KEY);location.reload();});
   $("[data-ja-filters]").addEventListener("click",event=>{const button=event.target.closest("[data-filter]");if(button){state.filter=button.dataset.filter;render();}});
   $("[data-ja-list]").addEventListener("click",event=>{const card=event.target.closest("[data-id]");if(card)openEditor(card.dataset.id);});
   $("[data-ja-close]").addEventListener("click",()=>$("[data-ja-editor]").close());
   $("[data-ja-form]").addEventListener("submit",event=>{event.preventDefault();save();});
   $("#ja-source_url").addEventListener("input",event=>{$("[data-ja-open-source]").href=event.target.value||"#";$("[data-ja-open-source]").hidden=!event.target.value;});
   $("#ja-recurrence_frequency").addEventListener("change",updateRecurrenceFields);
+  $("[data-ja-bookmarklet]").href="javascript:("+desktopCaptureBookmarklet.toString()+")()";
   $("[data-ja-archive]").addEventListener("click",()=>{const archived=state.statuses.find(item=>item.slug==="archived");if(archived){$("#ja-status_id").value=archived.id;save();}});
-  if(token) signIn(token).catch(()=>sessionStorage.removeItem(TOKEN_KEY));
+  if(token) signIn(token).catch(()=>{localStorage.removeItem(TOKEN_KEY);sessionStorage.removeItem(TOKEN_KEY);});
 })();
 </script>

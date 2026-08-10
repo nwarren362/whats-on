@@ -6,6 +6,7 @@
     <form data-ja-login-form>
       <label for="ja-token">Code privé</label>
       <input id="ja-token" type="password" autocomplete="current-password" required>
+      <div class="ja-remember"><input id="ja-remember" type="checkbox" checked><label for="ja-remember">Mémoriser sur cet ordinateur</label></div>
       <p class="ja-message" data-ja-login-message></p>
       <button type="submit">Ouvrir l’agenda</button>
     </form>
@@ -17,6 +18,10 @@
       <button class="ja-secondary" type="button" data-ja-logout>Déconnexion</button>
     </header>
     <p>Ouvrez un brouillon, complétez-le puis choisissez « Publié » pour l’afficher sur le site.</p>
+    <aside class="ja-bookmarklet-help">
+      <p><strong>Ajout depuis un ordinateur</strong><br>Glissez ce bouton dans la barre de favoris du navigateur, puis utilisez-le depuis une page à ajouter.</p>
+      <a class="ja-bookmarklet" data-ja-bookmarklet href="#">Ajouter à Jasmin Cottage</a>
+    </aside>
     <nav class="ja-filters" data-ja-filters></nav>
     <p data-ja-loading>Chargement…</p>
     <div class="ja-list" data-ja-list></div>

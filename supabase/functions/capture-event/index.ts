@@ -5,6 +5,9 @@ type CapturePayload = {
   title?: unknown;
   description?: unknown;
   image_url?: unknown;
+  start_at?: unknown;
+  end_at?: unknown;
+  location_name?: unknown;
 };
 
 type PageMetadata = {
@@ -20,6 +23,9 @@ const MAX_HTML_BYTES = 1_000_000;
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "content-type, x-capture-token",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
@@ -43,6 +49,12 @@ function parsePublicUrl(value: unknown) {
 
 function textValue(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+}
+
+function timestampValue(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf()) ? undefined : date.toISOString();
 }
 
 function isPrivateHostname(hostname: string) {
@@ -224,6 +236,9 @@ async function extractMetadata(sourceUrl: string): Promise<PageMetadata> {
 }
 
 Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: jsonHeaders });
+  }
   if (request.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
@@ -250,6 +265,9 @@ Deno.serve(async (request) => {
   const description = textValue(payload.description, 3_000) || metadata.description || null;
   const suppliedImage = parsePublicUrl(payload.image_url);
   const imageUrl = suppliedImage || metadata.imageUrl || null;
+  const startAt = timestampValue(payload.start_at) || metadata.startAt || null;
+  const endAt = timestampValue(payload.end_at) || metadata.endAt || null;
+  const locationName = textValue(payload.location_name, 200) || metadata.locationName || null;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -301,10 +319,10 @@ Deno.serve(async (request) => {
     .insert({
       title,
       description,
-      start_at: metadata.startAt ?? null,
-      end_at: metadata.endAt ?? null,
-      expires_at: metadata.endAt ?? null,
-      location_name: metadata.locationName ?? null,
+      start_at: startAt,
+      end_at: endAt,
+      expires_at: endAt,
+      location_name: locationName,
       source_url: sourceUrl,
       image_url: imageUrl,
       category_id: categoryResult.data.id,
