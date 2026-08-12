@@ -3,3 +3,4 @@
 !.env.example
 supabase/.temp/
 supabase/functions/.env
+research/*.json
