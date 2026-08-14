@@ -21,7 +21,7 @@
 #jasmin-admin .ja-bookmarklet-help p { margin:0 0 10px; }
 #jasmin-admin .ja-bookmarklet { display:inline-flex; min-height:40px; align-items:center; padding:8px 15px; border-radius:20px; color:#fff !important; background:var(--ja-teal); font-weight:700; text-decoration:none !important; cursor:grab; }
 #jasmin-admin .ja-bookmarklet:active { cursor:grabbing; }
-#jasmin-admin .ja-filters { display:flex; gap:8px; overflow:auto; margin:22px 0 18px; }
+#jasmin-admin .ja-filters,#jasmin-admin .ja-source-filters { display:flex; gap:8px; overflow:auto; margin:22px 0 18px; }
 #jasmin-admin .ja-sections { display:flex; gap:8px; margin:22px 0 8px; padding-bottom:12px; border-bottom:1px solid var(--ja-line); }
 #jasmin-admin .ja-sections button.active { background:var(--ja-teal); color:#fff; }
 #jasmin-admin .ja-filter { white-space:nowrap; border:1px solid var(--ja-line); background:#fff; color:#343434; font-weight:400; }
@@ -36,8 +36,8 @@
 #jasmin-admin .ja-source-card { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; padding:15px 18px; border:1px solid var(--ja-line); border-radius:8px; background:#fff; cursor:pointer; }
 #jasmin-admin .ja-source-card h2 { margin:3px 0 4px; font-size:19px; }
 #jasmin-admin .ja-source-card p { margin:0; color:var(--ja-muted); font-size:13px; }
-#jasmin-admin .ja-source-card.inactive { opacity:.58; }
 #jasmin-admin .ja-priority { align-self:start; border-radius:14px; padding:4px 9px; background:#e9f4f3; color:#075f5a; font-size:11px; font-weight:800; text-transform:uppercase; }
+#jasmin-admin .ja-review { display:inline-block; margin-left:7px; border-radius:12px; padding:3px 7px; background:#fff0d9; color:#8a5200; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
 #jasmin-admin .ja-editor { width:min(760px,calc(100% - 18px)); max-height:calc(100dvh - 18px); border:0; border-radius:10px; padding:0; color:#343434; }
 #jasmin-admin .ja-editor::backdrop { background:rgb(0 0 0 / .48); }
 #jasmin-admin .ja-editor form { padding:20px; }

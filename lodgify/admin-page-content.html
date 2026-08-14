@@ -33,6 +33,7 @@
     </div>
     <div data-ja-sources-panel hidden>
       <div class="ja-source-toolbar"><p>Sources à consulter lors des recherches d’événements.</p><button type="button" data-ja-new-source>Ajouter une source</button></div>
+      <nav class="ja-source-filters" data-ja-source-filters aria-label="Filtrer les sources"></nav>
       <p data-ja-sources-loading>Chargement…</p>
       <div class="ja-source-list" data-ja-source-list></div>
     </div>
@@ -75,15 +76,16 @@
         <div class="ja-wide"><label for="ja-source-name">Nom *</label><input id="ja-source-name" required maxlength="200"></div>
         <div class="ja-wide"><label for="ja-source-link">Adresse *</label><input id="ja-source-link" required type="url"></div>
         <div><label for="ja-source-type">Type *</label><select id="ja-source-type"><option value="facebook_group">Groupe Facebook</option><option value="facebook_page">Page Facebook</option><option value="mairie">Mairie</option><option value="tourist_office">Office de tourisme</option><option value="organiser">Organisateur</option><option value="local_press">Presse locale</option><option value="other">Autre</option></select></div>
+        <div><label for="ja-source-lifecycle">Statut *</label><select id="ja-source-lifecycle"><option value="review">À vérifier</option><option value="verified">Vérifiée</option></select></div>
         <div><label for="ja-source-priority">Priorité *</label><select id="ja-source-priority"><option value="high">Haute</option><option value="normal" selected>Normale</option><option value="low">Basse</option></select></div>
         <div class="ja-wide"><label for="ja-source-area">Zone</label><input id="ja-source-area" maxlength="200"></div>
         <div class="ja-wide"><label for="ja-source-notes">Utilité de la source</label><textarea id="ja-source-notes" maxlength="1000"></textarea></div>
         <div class="ja-wide"><label for="ja-source-access-notes">Notes d’accès</label><textarea id="ja-source-access-notes" maxlength="500"></textarea></div>
-        <div><label for="ja-source-added-by">Ajoutée par</label><input id="ja-source-added-by" maxlength="100"></div>
-        <div class="ja-check"><input id="ja-source-active" type="checkbox" checked><label for="ja-source-active">Source active</label></div>
+        <div class="ja-wide"><label for="ja-source-added-by">Ajoutée par</label><input id="ja-source-added-by" maxlength="100"></div>
+        <div class="ja-wide" data-ja-review-reason><label for="ja-source-review-reason">Éléments à vérifier</label><textarea id="ja-source-review-reason" maxlength="500"></textarea><small>Corrigez la source, choisissez « Vérifiée », puis enregistrez.</small></div>
       </div>
       <p class="ja-message" data-ja-source-message></p>
-      <footer class="ja-actions"><span></span><button type="submit">Enregistrer</button></footer>
+      <footer class="ja-actions"><button class="ja-danger" type="button" data-ja-delete-source>Supprimer la source</button><button type="submit">Enregistrer</button></footer>
     </form>
   </dialog>
   <div class="ja-toast" data-ja-toast role="status"></div>

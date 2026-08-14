@@ -14,6 +14,10 @@ A curated feed of local events, captured from an iPhone Share Sheet, reviewed in
 - Accept an approved research shortlist through a protected batch endpoint that can create drafts only.
 - Import approved research from Codex using a local helper and a private code held in macOS Keychain.
 - Maintain a private shared watchlist of proven Facebook, organiser, mairie, tourism and local-news sources.
+- Recognise useful sources when an event is published, refresh known sources, and queue newly inferred origins for review.
+- Move sources through a simple `review` → `verified` lifecycle and permanently delete one-off or irrelevant origins.
+- Remember rejected automatic suggestions against their originating event so they are not recreated when that event is saved again.
+- Filter the source watchlist by lifecycle, priority, and Facebook origin.
 
 ## Backlog
 

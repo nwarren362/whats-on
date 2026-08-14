@@ -2,11 +2,12 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const COOKIE_NAME = "jasmin_admin";
 const COOKIE_PATH = "/functions/v1/manage-events";
+const API_VERSION = "source-lifecycle-v1";
 const JSON_HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "content-type, x-capture-token",
-  "Access-Control-Allow-Methods": "GET, PATCH, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "DELETE, GET, PATCH, POST, OPTIONS",
 };
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -135,15 +136,15 @@ Deno.serve(async (request) => {
   if (pathname.endsWith("/api/sources") && request.method === "GET") {
     const { data, error } = await supabase
       .from("sources")
-      .select("id,name,url,source_type,area,notes,access_notes,priority,is_active,added_by,last_checked_at,last_useful_at,created_at,updated_at")
-      .order("is_active", { ascending: false })
+      .select("id,name,url,source_type,area,notes,access_notes,priority,lifecycle_status,review_reason,discovered_from_event_id,added_by,last_checked_at,last_useful_at,created_at,updated_at")
+      .order("lifecycle_status")
       .order("priority")
       .order("name");
     if (error) {
       console.error("Source list query failed", error);
       return json({ error: "Impossible de charger les sources" }, 500);
     }
-    return json({ sources: data });
+    return json({ sources: data, version: API_VERSION });
   }
 
   if (pathname.endsWith("/api/sources") && request.method === "POST") {
@@ -184,6 +185,39 @@ Deno.serve(async (request) => {
       return json({ error: "Impossible d’enregistrer la source" }, 500);
     }
     return json({ ok: true, source: data, message: "Source enregistrée." });
+  }
+
+  if (sourceMatch && request.method === "DELETE") {
+    if (!UUID_PATTERN.test(sourceMatch[1])) return json({ error: "Invalid source id" }, 400);
+    const { data: source, error: sourceError } = await supabase.from("sources")
+      .select("id,name,url,discovered_from_event_id")
+      .eq("id", sourceMatch[1])
+      .single();
+    if (sourceError) return json({ error: "Source introuvable" }, 404);
+
+    if (source.discovered_from_event_id) {
+      const { data: originatingEvent, error: eventLookupError } = await supabase.from("events")
+        .select("source_url")
+        .eq("id", source.discovered_from_event_id)
+        .single();
+      if (eventLookupError) {
+        console.error("Could not read the originating event", eventLookupError);
+        return json({ error: "Impossible de retrouver l’événement d’origine" }, 500);
+      }
+      const { error: ignoreError } = await supabase.from("events")
+        .update({ source_tracking_ignored_url: originatingEvent.source_url || source.url, updated_at: new Date().toISOString() })
+        .eq("id", source.discovered_from_event_id);
+      if (ignoreError) {
+        console.error("Could not preserve rejected source decision", ignoreError);
+        return json({ error: "Impossible de mémoriser le rejet de cette source" }, 500);
+      }
+    }
+    const { error: deleteError } = await supabase.from("sources").delete().eq("id", sourceMatch[1]);
+    if (deleteError) {
+      console.error("Source delete failed", deleteError);
+      return json({ error: "Impossible de supprimer la source" }, 500);
+    }
+    return json({ ok: true, message: `Source « ${source.name} » supprimée.` });
   }
 
   const eventMatch = pathname.match(/\/api\/events\/([0-9a-f-]+)$/i);
@@ -269,7 +303,7 @@ Deno.serve(async (request) => {
         updated_at: new Date().toISOString(),
       })
       .eq("id", eventId)
-      .select("id,title")
+      .select("id,title,source_url,status_id,source_tracking_ignored_url")
       .single();
 
     if (error) {
@@ -277,11 +311,165 @@ Deno.serve(async (request) => {
       return json({ error: "Impossible d’enregistrer l’événement" }, 500);
     }
 
-    return json({ ok: true, event: data, message: "Événement enregistré." });
+    let message = "Événement enregistré.";
+    const { data: selectedStatus, error: statusError } = await supabase
+      .from("statuses")
+      .select("slug")
+      .eq("id", statusId)
+      .single();
+    if (statusError) {
+      console.error("Could not identify saved event status", statusError);
+    } else if (selectedStatus.slug === "published" && sourceUrl) {
+      try {
+        const sourceResult = await syncPublishedSource(supabase, {
+          id: eventId,
+          title,
+          sourceUrl,
+          ignoredSourceUrl: typeof data.source_tracking_ignored_url === "string" ? data.source_tracking_ignored_url : null,
+        });
+        if (sourceResult === "created") message = "Événement enregistré. Nouvelle source à vérifier.";
+        if (sourceResult === "matched") message = "Événement enregistré. Source reconnue.";
+        if (sourceResult === "ignored") message = "Événement enregistré. Source volontairement ignorée.";
+      } catch (sourceError) {
+        console.error("Published event source sync failed", sourceError);
+        message = "Événement enregistré. La source n’a pas pu être mise à jour.";
+      }
+    }
+
+    return json({ ok: true, event: data, message });
   }
 
   return json({ error: "Not found" }, 404);
 });
+
+type PublishedEventSource = { id: string; title: string; sourceUrl: string; ignoredSourceUrl: string | null };
+type SourceCandidate = {
+  url: string;
+  matchKey: string;
+  sourceType: "facebook_group" | "facebook_page" | "other";
+  label: string;
+  reviewReason: string;
+};
+
+function sourceCandidate(rawUrl: string): SourceCandidate {
+  const parsed = new URL(rawUrl);
+  parsed.hash = "";
+  const hostname = parsed.hostname.toLowerCase().replace(/^www\./, "").replace(/^m\./, "");
+
+  if (hostname === "facebook.com") {
+    const group = parsed.pathname.match(/^\/groups\/([^/]+)/i);
+    if (group) {
+      const url = `https://www.facebook.com/groups/${group[1]}`;
+      return {
+        url,
+        matchKey: `facebook:${url.toLowerCase()}`,
+        sourceType: "facebook_group",
+        label: "Groupe Facebook",
+        reviewReason: "Vérifier le nom du groupe, sa zone géographique et son utilité pour les recherches futures.",
+      };
+    }
+
+    const profilePaths = new Set(["/profile.php", "/permalink.php", "/story.php"]);
+    const profileId = profilePaths.has(parsed.pathname.toLowerCase()) ? parsed.searchParams.get("id") : null;
+    if (profileId) {
+      const url = `https://www.facebook.com/profile.php?id=${encodeURIComponent(profileId)}`;
+      return {
+        url,
+        matchKey: `facebook:${url.toLowerCase()}`,
+        sourceType: "facebook_page",
+        label: "Page Facebook",
+        reviewReason: "Vérifier le nom de la page Facebook, sa zone géographique et son utilité.",
+      };
+    }
+
+    const page = parsed.pathname.match(/^\/([^/]+)(?:\/(?:posts|photos|videos)\/.*)?\/?$/i);
+    const reserved = new Set(["share", "events", "permalink.php", "story.php", "watch", "groups"]);
+    if (page && !reserved.has(page[1].toLowerCase())) {
+      const url = `https://www.facebook.com/${page[1]}`;
+      return {
+        url,
+        matchKey: `facebook:${url.toLowerCase()}`,
+        sourceType: "facebook_page",
+        label: "Page Facebook",
+        reviewReason: "Vérifier le nom de la page Facebook, sa zone géographique et son utilité.",
+      };
+    }
+
+    parsed.hostname = "www.facebook.com";
+    parsed.search = "";
+    const url = parsed.toString().replace(/\/$/, "");
+    return {
+      url,
+      matchKey: `facebook:${url.toLowerCase()}`,
+      sourceType: "other",
+      label: "Source Facebook",
+      reviewReason: "Le lien désigne un partage ou une publication. Remplacer si possible par la page ou le groupe Facebook réutilisable.",
+    };
+  }
+
+  const url = `${parsed.protocol}//${parsed.host}/`;
+  return {
+    url,
+    matchKey: `website:${hostname}`,
+    sourceType: "other",
+    label: hostname,
+    reviewReason: "Vérifier le nom de l’organisme, le type de source, la zone et l’adresse la plus utile pour les recherches futures.",
+  };
+}
+
+async function syncPublishedSource(
+  supabase: ReturnType<typeof createClient>,
+  event: PublishedEventSource,
+): Promise<"matched" | "created" | "ignored"> {
+  const candidate = sourceCandidate(event.sourceUrl);
+  if (event.ignoredSourceUrl) {
+    try {
+      if (sourceCandidate(event.ignoredSourceUrl).matchKey === candidate.matchKey) return "ignored";
+    } catch {
+      // An invalid historic value should not block recognition of the current source.
+    }
+  }
+  const { data: sources, error: sourceListError } = await supabase
+    .from("sources")
+    .select("id,url,discovered_from_event_id");
+  if (sourceListError) throw sourceListError;
+
+  const existing = (sources ?? []).find((source) => {
+    if (source.discovered_from_event_id === event.id) return true;
+    try {
+      return sourceCandidate(source.url).matchKey === candidate.matchKey;
+    } catch {
+      return false;
+    }
+  });
+  const now = new Date().toISOString();
+  if (existing) {
+    const { error } = await supabase.from("sources")
+      .update({ last_useful_at: now, updated_at: now })
+      .eq("id", existing.id);
+    if (error) throw error;
+    return "matched";
+  }
+
+  const shortTitle = event.title.length > 90 ? `${event.title.slice(0, 87)}…` : event.title;
+  const { error: insertError } = await supabase.from("sources").insert({
+    name: `${candidate.label} – ${shortTitle}`.slice(0, 200),
+    url: candidate.url,
+    source_type: candidate.sourceType,
+    area: null,
+    notes: `Source ayant fourni l’événement publié « ${shortTitle} ».`.slice(0, 1_000),
+    access_notes: candidate.url.includes("facebook.com") ? "Connexion Facebook probablement nécessaire." : null,
+    priority: "normal",
+    lifecycle_status: "review",
+    review_reason: candidate.reviewReason,
+    discovered_from_event_id: event.id,
+    added_by: "Automatisation",
+    last_useful_at: now,
+  });
+  if (insertError?.code === "23505") return "matched";
+  if (insertError) throw insertError;
+  return "created";
+}
 
 function validateSource(body: Record<string, unknown>): { value: Record<string, unknown> } | { error: string } {
   const name = nullableText(body.name, 200);
@@ -290,11 +478,25 @@ function validateSource(body: Record<string, unknown>): { value: Record<string, 
   const notes = nullableText(body.notes, 1_000);
   const accessNotes = nullableText(body.access_notes, 500);
   const addedBy = nullableText(body.added_by, 100);
+  const reviewReason = nullableText(body.review_reason, 500);
+  const lastCheckedAt = nullableTimestamp(body.last_checked_at);
+  const lastUsefulAt = nullableTimestamp(body.last_useful_at);
+  const discoveredFromEventId = body.discovered_from_event_id === null || body.discovered_from_event_id === undefined || body.discovered_from_event_id === ""
+    ? null
+    : typeof body.discovered_from_event_id === "string" && UUID_PATTERN.test(body.discovered_from_event_id)
+    ? body.discovered_from_event_id
+    : undefined;
   const sourceTypes = ["facebook_group", "facebook_page", "mairie", "tourist_office", "organiser", "local_press", "other"];
   const priorities = ["high", "normal", "low"];
+  const lifecycleStatuses = ["review", "verified"];
   const sourceType = typeof body.source_type === "string" && sourceTypes.includes(body.source_type) ? body.source_type : "";
   const priority = typeof body.priority === "string" && priorities.includes(body.priority) ? body.priority : "";
-  if (!name || !url || area === undefined || notes === undefined || accessNotes === undefined || addedBy === undefined || !sourceType || !priority) {
+  const lifecycleStatus = typeof body.lifecycle_status === "string" && lifecycleStatuses.includes(body.lifecycle_status)
+    ? body.lifecycle_status
+    : "";
+  if (!name || !url || area === undefined || notes === undefined || accessNotes === undefined || addedBy === undefined ||
+    reviewReason === undefined || lastCheckedAt === undefined || lastUsefulAt === undefined || discoveredFromEventId === undefined ||
+    !sourceType || !priority || !lifecycleStatus) {
     return { error: "Veuillez vérifier les champs de la source" };
   }
   try {
@@ -305,8 +507,10 @@ function validateSource(body: Record<string, unknown>): { value: Record<string, 
   }
   return { value: {
     name, url, source_type: sourceType, area, notes, access_notes: accessNotes,
-    priority, is_active: body.is_active !== false, added_by: addedBy,
-    last_checked_at: nullableTimestamp(body.last_checked_at),
-    last_useful_at: nullableTimestamp(body.last_useful_at),
+    priority, lifecycle_status: lifecycleStatus, added_by: addedBy,
+    review_reason: lifecycleStatus === "review" ? reviewReason : null,
+    discovered_from_event_id: discoveredFromEventId,
+    last_checked_at: lastCheckedAt,
+    last_useful_at: lastUsefulAt,
   } };
 }

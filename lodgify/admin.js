@@ -19,7 +19,7 @@
   const fields = ["title","description","start_at","end_at","recurrence_frequency","recurrence_until","expires_at","location_name","category_id","status_id","source_url","image_url","featured","editor_note"];
   const timestampFields = ["start_at","end_at","recurrence_until","expires_at"];
   let token = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || "";
-  let state = { events: [], categories: [], statuses: [], sources: [], filter: "draft", current: null, currentSource: null, section: "events" };
+  let state = { events: [], categories: [], statuses: [], sources: [], filter: "draft", sourceFilter: "review", current: null, currentSource: null, section: "events" };
   const $ = selector => root.querySelector(selector);
   const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, character => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[character]);
   const status = event => event.statuses?.slug || "";
@@ -79,18 +79,24 @@
   }
   const sourceTypeLabels={facebook_group:"Groupe Facebook",facebook_page:"Page Facebook",mairie:"Mairie",tourist_office:"Office de tourisme",organiser:"Organisateur",local_press:"Presse locale",other:"Autre"};
   const priorityLabels={high:"Haute",normal:"Normale",low:"Basse"};
+  function sourceMatchesFilter(source,filter){if(filter==="review"||filter==="verified")return source.lifecycle_status===filter;if(filter==="high")return source.priority==="high";if(filter==="facebook")return source.source_type.startsWith("facebook_");return true;}
   function renderSources(){
-    $("[data-ja-source-list]").innerHTML=state.sources.length?state.sources.map(source=>'<article class="ja-source-card '+(source.is_active?'':'inactive')+'" tabindex="0" data-source-id="'+source.id+'"><div><span class="ja-badge">'+escapeHtml(sourceTypeLabels[source.source_type]||source.source_type)+(source.area?' · '+escapeHtml(source.area):'')+'</span><h2>'+escapeHtml(source.name)+'</h2><p>'+escapeHtml(source.notes||source.url)+'</p></div><span class="ja-priority">'+escapeHtml(priorityLabels[source.priority]||source.priority)+'</span></article>').join(""):'<p>Aucune source enregistrée.</p>';
+    const filters=[["review","À vérifier"],["verified","Vérifiées"],["high","Priorité haute"],["facebook","Facebook"],["all","Toutes"]];
+    $("[data-ja-source-filters]").innerHTML=filters.map(([slug,label])=>'<button type="button" class="ja-filter '+(state.sourceFilter===slug?'active':'')+'" data-source-filter="'+slug+'">'+label+' ('+state.sources.filter(source=>sourceMatchesFilter(source,slug)).length+')</button>').join("");
+    const visible=state.sources.filter(source=>sourceMatchesFilter(source,state.sourceFilter));
+    $("[data-ja-source-list]").innerHTML=visible.length?visible.map(source=>'<article class="ja-source-card" tabindex="0" data-source-id="'+source.id+'"><div><span class="ja-badge">'+escapeHtml(sourceTypeLabels[source.source_type]||source.source_type)+(source.area?' · '+escapeHtml(source.area):'')+'</span>'+(source.lifecycle_status==="review"?'<span class="ja-review">À vérifier</span>':'')+'<h2>'+escapeHtml(source.name)+'</h2><p>'+escapeHtml(source.review_reason||source.notes||source.url)+'</p></div><span class="ja-priority">'+escapeHtml(priorityLabels[source.priority]||source.priority)+'</span></article>').join(""):'<p>Aucune source dans cette rubrique.</p>';
   }
-  async function loadSources(){const data=await api("/api/sources");state.sources=data.sources;$("[data-ja-sources-loading]").hidden=true;renderSources();}
+  async function loadSources(){const data=await api("/api/sources"),rank={high:0,normal:1,low:2};state.sources=data.sources.sort((left,right)=>Number(right.lifecycle_status==="review")-Number(left.lifecycle_status==="review")||(rank[left.priority]??9)-(rank[right.priority]??9)||left.name.localeCompare(right.name,"fr"));const reviewCount=state.sources.filter(source=>source.lifecycle_status==="review").length;$("[data-ja-section='sources']").textContent=reviewCount?"Sources ("+reviewCount+" à vérifier)":"Sources";$("[data-ja-sources-loading]").hidden=true;renderSources();}
   function showSection(section){state.section=section;$("[data-ja-events-panel]").hidden=section!=="events";$("[data-ja-sources-panel]").hidden=section!=="sources";root.querySelectorAll("[data-ja-section]").forEach(button=>button.classList.toggle("active",button.dataset.jaSection===section));if(section==="sources"&&state.sources.length===0)loadSources().catch(error=>showToast(error.message));}
   function openSourceEditor(id){
     const source=id?state.sources.find(item=>item.id===id):null;state.currentSource=source||null;
     $("[data-ja-source-title]").textContent=source?source.name:"Ajouter une source";
-    $("#ja-source-name").value=source?.name||"";$("#ja-source-link").value=source?.url||"";$("#ja-source-type").value=source?.source_type||"other";$("#ja-source-priority").value=source?.priority||"normal";$("#ja-source-area").value=source?.area||"";$("#ja-source-notes").value=source?.notes||"";$("#ja-source-access-notes").value=source?.access_notes||"";$("#ja-source-added-by").value=source?.added_by||"Nigel";$("#ja-source-active").checked=source?.is_active!==false;$("[data-ja-source-message]").textContent="";$("[data-ja-source-editor]").showModal();
+    $("#ja-source-name").value=source?.name||"";$("#ja-source-link").value=source?.url||"";$("#ja-source-type").value=source?.source_type||"other";$("#ja-source-lifecycle").value=source?.lifecycle_status||"verified";$("#ja-source-priority").value=source?.priority||"normal";$("#ja-source-area").value=source?.area||"";$("#ja-source-notes").value=source?.notes||"";$("#ja-source-access-notes").value=source?.access_notes||"";$("#ja-source-added-by").value=source?.added_by||"Nigel";$("#ja-source-review-reason").value=source?.review_reason||"";updateSourceReviewFields();$("[data-ja-delete-source]").hidden=!source;$("[data-ja-source-message]").textContent="";$("[data-ja-source-editor]").showModal();
   }
-  function sourcePayload(){return{name:$("#ja-source-name").value.trim(),url:$("#ja-source-link").value.trim(),source_type:$("#ja-source-type").value,priority:$("#ja-source-priority").value,area:$("#ja-source-area").value.trim(),notes:$("#ja-source-notes").value.trim(),access_notes:$("#ja-source-access-notes").value.trim(),added_by:$("#ja-source-added-by").value.trim(),is_active:$("#ja-source-active").checked,last_checked_at:state.currentSource?.last_checked_at||null,last_useful_at:state.currentSource?.last_useful_at||null};}
+  function updateSourceReviewFields(){$("[data-ja-review-reason]").hidden=$("#ja-source-lifecycle").value!=="review";}
+  function sourcePayload(){const lifecycle=$("#ja-source-lifecycle").value;return{name:$("#ja-source-name").value.trim(),url:$("#ja-source-link").value.trim(),source_type:$("#ja-source-type").value,lifecycle_status:lifecycle,priority:$("#ja-source-priority").value,area:$("#ja-source-area").value.trim(),notes:$("#ja-source-notes").value.trim(),access_notes:$("#ja-source-access-notes").value.trim(),added_by:$("#ja-source-added-by").value.trim(),review_reason:lifecycle==="review"?$("#ja-source-review-reason").value.trim():"",discovered_from_event_id:state.currentSource?.discovered_from_event_id||null,last_checked_at:state.currentSource?.last_checked_at||null,last_useful_at:state.currentSource?.last_useful_at||null};}
   async function saveSource(){const message=$("[data-ja-source-message]");message.textContent="Enregistrement…";try{const path=state.currentSource?"/api/sources/"+state.currentSource.id:"/api/sources";const data=await api(path,{method:state.currentSource?"PATCH":"POST",body:JSON.stringify(sourcePayload())});message.textContent="";$("[data-ja-source-editor]").close();showToast(data.message);await loadSources();}catch(error){message.textContent=error.message;}}
+  async function deleteSource(){if(!state.currentSource)return;const name=state.currentSource.name;if(!window.confirm('Supprimer « '+name+' » ?\n\nCette source sera retirée définitivement de la liste de recherche. L’événement publié ne sera pas supprimé.'))return;const message=$("[data-ja-source-message]");message.textContent="Suppression…";try{const data=await api("/api/sources/"+state.currentSource.id,{method:"DELETE"});message.textContent="";$("[data-ja-source-editor]").close();showToast(data.message);await loadSources();}catch(error){message.textContent=error.message;}}
   async function load() {
     const data=await api("/api/events"); state={...state,...data};
     setOptions("#ja-category_id",state.categories); setOptions("#ja-status_id",state.statuses);
@@ -112,10 +118,13 @@
   $("[data-ja-logout]").addEventListener("click",()=>{localStorage.removeItem(TOKEN_KEY);sessionStorage.removeItem(TOKEN_KEY);location.reload();});
   $("[data-ja-filters]").addEventListener("click",event=>{const button=event.target.closest("[data-filter]");if(button){state.filter=button.dataset.filter;render();}});
   root.querySelectorAll("[data-ja-section]").forEach(button=>button.addEventListener("click",()=>showSection(button.dataset.jaSection)));
+  $("[data-ja-source-filters]").addEventListener("click",event=>{const button=event.target.closest("[data-source-filter]");if(button){state.sourceFilter=button.dataset.sourceFilter;renderSources();}});
   $("[data-ja-new-source]").addEventListener("click",()=>openSourceEditor());
   $("[data-ja-source-list]").addEventListener("click",event=>{const card=event.target.closest("[data-source-id]");if(card)openSourceEditor(card.dataset.sourceId);});
   $("[data-ja-source-close]").addEventListener("click",()=>$("[data-ja-source-editor]").close());
   $("[data-ja-source-form]").addEventListener("submit",event=>{event.preventDefault();saveSource();});
+  $("#ja-source-lifecycle").addEventListener("change",updateSourceReviewFields);
+  $("[data-ja-delete-source]").addEventListener("click",deleteSource);
   $("[data-ja-list]").addEventListener("click",event=>{const card=event.target.closest("[data-id]");if(card)openEditor(card.dataset.id);});
   $("[data-ja-close]").addEventListener("click",()=>$("[data-ja-editor]").close());
   $("[data-ja-form]").addEventListener("submit",event=>{event.preventDefault();save();});
