@@ -13,6 +13,7 @@ A curated feed of local events, captured from an iPhone Share Sheet, reviewed in
 - Hide inaccessible or expired external images without showing a broken placeholder.
 - Accept an approved research shortlist through a protected batch endpoint that can create drafts only.
 - Import approved research from Codex using a local helper and a private code held in macOS Keychain.
+- Maintain a private shared watchlist of proven Facebook, organiser, mairie, tourism and local-news sources.
 
 ## Backlog
 
@@ -43,3 +44,27 @@ Import an approved file with:
 ```
 
 The helper reads the private code from Keychain at runtime. The code is never stored in the repository, payload file, shell history, or command output.
+
+## Shared source watchlist
+
+The private editor's **Sources** section is the easiest way to add and edit research sources manually. Codex can use the same watchlist through a local helper that reads the existing private code from macOS Keychain.
+
+List the current sources:
+
+```bash
+./scripts/manage-sources.sh list
+```
+
+Add a source from a temporary JSON file:
+
+```bash
+./scripts/manage-sources.sh add research/source.json
+```
+
+Update an existing source using the ID returned by `list`:
+
+```bash
+./scripts/manage-sources.sh update SOURCE_ID research/source.json
+```
+
+Source payload files placed in `research/` are ignored by Git. The helper can only access the protected source-management API; it does not expose the watchlist publicly or place the private code in the repository.

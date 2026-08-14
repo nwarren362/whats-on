@@ -132,6 +132,60 @@ Deno.serve(async (request) => {
     });
   }
 
+  if (pathname.endsWith("/api/sources") && request.method === "GET") {
+    const { data, error } = await supabase
+      .from("sources")
+      .select("id,name,url,source_type,area,notes,access_notes,priority,is_active,added_by,last_checked_at,last_useful_at,created_at,updated_at")
+      .order("is_active", { ascending: false })
+      .order("priority")
+      .order("name");
+    if (error) {
+      console.error("Source list query failed", error);
+      return json({ error: "Impossible de charger les sources" }, 500);
+    }
+    return json({ sources: data });
+  }
+
+  if (pathname.endsWith("/api/sources") && request.method === "POST") {
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: "Invalid JSON" }, 400);
+    }
+    const source = validateSource(body);
+    if ("error" in source) return json({ error: source.error }, 400);
+    const { data, error } = await supabase.from("sources").insert(source.value).select().single();
+    if (error?.code === "23505") return json({ error: "Cette adresse existe déjà dans les sources" }, 409);
+    if (error) {
+      console.error("Source insert failed", error);
+      return json({ error: "Impossible d’ajouter la source" }, 500);
+    }
+    return json({ ok: true, source: data, message: "Source ajoutée." }, 201);
+  }
+
+  const sourceMatch = pathname.match(/\/api\/sources\/([0-9a-f-]+)$/i);
+  if (sourceMatch && request.method === "PATCH") {
+    if (!UUID_PATTERN.test(sourceMatch[1])) return json({ error: "Invalid source id" }, 400);
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: "Invalid JSON" }, 400);
+    }
+    const source = validateSource(body);
+    if ("error" in source) return json({ error: source.error }, 400);
+    const { data, error } = await supabase.from("sources")
+      .update({ ...source.value, updated_at: new Date().toISOString() })
+      .eq("id", sourceMatch[1]).select().single();
+    if (error?.code === "23505") return json({ error: "Cette adresse existe déjà dans les sources" }, 409);
+    if (error) {
+      console.error("Source update failed", error);
+      return json({ error: "Impossible d’enregistrer la source" }, 500);
+    }
+    return json({ ok: true, source: data, message: "Source enregistrée." });
+  }
+
   const eventMatch = pathname.match(/\/api\/events\/([0-9a-f-]+)$/i);
   if (eventMatch && request.method === "PATCH") {
     const eventId = eventMatch[1];
@@ -228,3 +282,31 @@ Deno.serve(async (request) => {
 
   return json({ error: "Not found" }, 404);
 });
+
+function validateSource(body: Record<string, unknown>): { value: Record<string, unknown> } | { error: string } {
+  const name = nullableText(body.name, 200);
+  const url = nullableText(body.url, 2_000);
+  const area = nullableText(body.area, 200);
+  const notes = nullableText(body.notes, 1_000);
+  const accessNotes = nullableText(body.access_notes, 500);
+  const addedBy = nullableText(body.added_by, 100);
+  const sourceTypes = ["facebook_group", "facebook_page", "mairie", "tourist_office", "organiser", "local_press", "other"];
+  const priorities = ["high", "normal", "low"];
+  const sourceType = typeof body.source_type === "string" && sourceTypes.includes(body.source_type) ? body.source_type : "";
+  const priority = typeof body.priority === "string" && priorities.includes(body.priority) ? body.priority : "";
+  if (!name || !url || area === undefined || notes === undefined || accessNotes === undefined || addedBy === undefined || !sourceType || !priority) {
+    return { error: "Veuillez vérifier les champs de la source" };
+  }
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error();
+  } catch {
+    return { error: "Le lien doit commencer par http:// ou https://" };
+  }
+  return { value: {
+    name, url, source_type: sourceType, area, notes, access_notes: accessNotes,
+    priority, is_active: body.is_active !== false, added_by: addedBy,
+    last_checked_at: nullableTimestamp(body.last_checked_at),
+    last_useful_at: nullableTimestamp(body.last_useful_at),
+  } };
+}
