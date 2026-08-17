@@ -49,10 +49,10 @@
         <div class="ja-wide"><label for="ja-title">Titre *</label><input id="ja-title" required maxlength="200"></div>
         <div class="ja-wide"><label for="ja-description">Description</label><textarea id="ja-description" maxlength="3000"></textarea></div>
         <div><label for="ja-start_at">Début</label><input id="ja-start_at" type="datetime-local"></div>
-        <div><label for="ja-end_at">Fin</label><input id="ja-end_at" type="datetime-local"></div>
+        <div><label for="ja-end_at">Fin</label><input id="ja-end_at" type="datetime-local"><small>Proposée automatiquement deux heures après le début.</small></div>
         <div><label for="ja-recurrence_frequency">Répétition</label><select id="ja-recurrence_frequency"><option value="none">Aucune</option><option value="weekly">Chaque semaine</option></select></div>
         <div data-ja-recurrence-until><label for="ja-recurrence_until">Dernière occurrence</label><input id="ja-recurrence_until" type="datetime-local"><small>La date et l’heure de début de la dernière occurrence.</small></div>
-        <div><label for="ja-expires_at">Masquer après</label><input id="ja-expires_at" type="datetime-local"></div>
+        <div><label for="ja-expires_at">Masquer après (facultatif)</label><input id="ja-expires_at" type="datetime-local"><small>Par défaut, l’événement disparaît à la fin.</small></div>
         <div><label for="ja-location_name">Lieu</label><input id="ja-location_name" maxlength="200"></div>
         <div><label for="ja-category_id">Catégorie *</label><select id="ja-category_id" required></select></div>
         <div><label for="ja-status_id">Statut *</label><select id="ja-status_id" required></select></div>
@@ -74,7 +74,7 @@
       </header>
       <div class="ja-fields">
         <div class="ja-wide"><label for="ja-source-name">Nom *</label><input id="ja-source-name" required maxlength="200"></div>
-        <div class="ja-wide"><label for="ja-source-link">Adresse *</label><input id="ja-source-link" required type="url"></div>
+        <div class="ja-wide"><label for="ja-source-link">Adresse *</label><div class="ja-link-row"><input id="ja-source-link" required type="url"><a data-ja-open-source-record target="_blank" rel="noopener">Ouvrir</a></div></div>
         <div><label for="ja-source-type">Type *</label><select id="ja-source-type"><option value="facebook_group">Groupe Facebook</option><option value="facebook_page">Page Facebook</option><option value="mairie">Mairie</option><option value="tourist_office">Office de tourisme</option><option value="organiser">Organisateur</option><option value="local_press">Presse locale</option><option value="other">Autre</option></select></div>
         <div><label for="ja-source-lifecycle">Statut *</label><select id="ja-source-lifecycle"><option value="review">À vérifier</option><option value="verified">Vérifiée</option></select></div>
         <div><label for="ja-source-priority">Priorité *</label><select id="ja-source-priority"><option value="high">Haute</option><option value="normal" selected>Normale</option><option value="low">Basse</option></select></div>

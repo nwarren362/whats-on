@@ -265,7 +265,7 @@ Deno.serve(async (request) => {
       return json({ error: "La dernière occurrence doit être après la première" }, 400);
     }
 
-    let effectiveExpiry = expiresAt;
+    let effectiveExpiry = expiresAt ?? endAt;
     if (recurrenceFrequency === "weekly") {
       const firstStart = new Date(startAt!).valueOf();
       const firstEnd = endAt ? new Date(endAt).valueOf() : firstStart + 86_400_000;
