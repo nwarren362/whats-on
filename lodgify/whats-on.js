@@ -1,6 +1,9 @@
 (function () {
   "use strict";
 
+  /* ======================================================================
+     SECTION 1 — PAGE SETUP AND DISPLAY SETTINGS
+     ====================================================================== */
   const feed = document.getElementById("jasmin-events");
   if (!feed) return;
 
@@ -24,6 +27,9 @@
     weekday: "long"
   });
 
+  /* ======================================================================
+     SECTION 2 — FRENCH DATE AND RECURRENCE FORMATTING
+     ====================================================================== */
   function formatEventDate(startAt, endAt) {
     if (!startAt) return "Date à confirmer";
 
@@ -91,6 +97,9 @@
     return element;
   }
 
+  /* ======================================================================
+     SECTION 3 — IMAGE POP-UP (LIGHTBOX)
+     ====================================================================== */
   function openImageLightbox(source, title) {
     let dialog = document.querySelector(".event-lightbox");
     if (!dialog) {
@@ -119,6 +128,9 @@
     dialog.showModal();
   }
 
+  /* ======================================================================
+     SECTION 4 — EVENT CARD CONTENT AND LINKS
+     ====================================================================== */
   function createEventCard(event) {
     const article = document.createElement("article");
     article.className = "event-card";
@@ -188,6 +200,9 @@
     ));
   }
 
+  /* ======================================================================
+     SECTION 5 — 28-DAY WINDOW AND LATER EVENTS
+     ====================================================================== */
   function isInPrimaryWindow(event) {
     if (event.featured || !event.start_at) return true;
     const cutoff = new Date();
@@ -213,6 +228,9 @@
     return section;
   }
 
+  /* ======================================================================
+     SECTION 6 — LOAD EVENTS FROM SUPABASE AND DISPLAY THEM
+     ====================================================================== */
   async function loadEvents() {
     try {
       const fields = [
@@ -264,5 +282,8 @@
     }
   }
 
+  /* ======================================================================
+     SECTION 7 — START THE PUBLIC FEED
+     ====================================================================== */
   loadEvents();
 })();

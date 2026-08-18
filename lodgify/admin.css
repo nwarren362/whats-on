@@ -1,3 +1,6 @@
+/* ========================================================================
+   SECTION 1 — BRAND COLOURS, PAGE WIDTH AND BASIC CONTROLS
+   ======================================================================== */
 #jasmin-admin { --ja-teal:#09978f; --ja-coral:#ff3856; --ja-line:#dedede; --ja-muted:#686868; width:min(960px,100%); margin:auto; padding:8px 16px 56px; color:#343434; }
 #jasmin-admin * { box-sizing:border-box; }
 #jasmin-admin button,#jasmin-admin input,#jasmin-admin select,#jasmin-admin textarea { font:inherit; }
@@ -16,12 +19,20 @@
 #jasmin-admin .ja-remember input { width:auto; }
 #jasmin-admin .ja-remember label { margin:0; }
 #jasmin-admin input:focus,#jasmin-admin select:focus,#jasmin-admin textarea:focus { outline:3px solid rgb(9 151 143 / .18); border-color:var(--ja-teal); }
+
+/* ========================================================================
+   SECTION 2 — LOGIN, HEADER AND DESKTOP BOOKMARKLET PANEL
+   ======================================================================== */
 #jasmin-admin .ja-message { min-height:24px; color:#8a2727; }
 #jasmin-admin .ja-top { display:flex; align-items:flex-start; justify-content:space-between; gap:15px; }
 #jasmin-admin .ja-bookmarklet-help { margin:18px 0; padding:14px 16px; border-left:4px solid var(--ja-teal); background:#f1f8f7; }
 #jasmin-admin .ja-bookmarklet-help p { margin:0 0 10px; }
 #jasmin-admin .ja-bookmarklet { display:inline-flex; min-height:40px; align-items:center; padding:8px 15px; border-radius:20px; color:#fff !important; background:var(--ja-teal); font-weight:700; text-decoration:none !important; cursor:grab; }
 #jasmin-admin .ja-bookmarklet:active { cursor:grabbing; }
+
+/* ========================================================================
+   SECTION 3 — TABS, FILTERS, EVENT CARDS AND SOURCE CARDS
+   ======================================================================== */
 #jasmin-admin .ja-filters,#jasmin-admin .ja-source-filters { display:flex; gap:8px; overflow:auto; margin:22px 0 18px; }
 #jasmin-admin .ja-sections { display:flex; gap:8px; margin:22px 0 8px; padding-bottom:12px; border-bottom:1px solid var(--ja-line); }
 #jasmin-admin .ja-sections button.active { background:var(--ja-teal); color:#fff; }
@@ -39,6 +50,10 @@
 #jasmin-admin .ja-source-card p { margin:0; color:var(--ja-muted); font-size:13px; }
 #jasmin-admin .ja-priority { align-self:start; border-radius:14px; padding:4px 9px; background:#e9f4f3; color:#075f5a; font-size:11px; font-weight:800; text-transform:uppercase; }
 #jasmin-admin .ja-review { display:inline-block; margin-left:7px; border-radius:12px; padding:3px 7px; background:#fff0d9; color:#8a5200; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+
+/* ========================================================================
+   SECTION 4 — EVENT AND SOURCE EDITOR DIALOGS
+   ======================================================================== */
 #jasmin-admin .ja-editor { width:min(760px,calc(100% - 18px)); max-height:calc(100dvh - 18px); border:0; border-radius:10px; padding:0; color:#343434; }
 #jasmin-admin .ja-editor::backdrop { background:rgb(0 0 0 / .48); }
 #jasmin-admin .ja-editor form { padding:20px; }
@@ -55,4 +70,8 @@
 #jasmin-admin .ja-actions { display:flex; justify-content:space-between; gap:12px; position:sticky; bottom:-20px; background:#fff; border-top:1px solid var(--ja-line); margin:14px -20px -20px; padding:14px 20px; }
 #jasmin-admin .ja-toast { position:fixed; z-index:9999; left:50%; bottom:18px; transform:translateX(-50%); max-width:90%; padding:10px 18px; border-radius:22px; background:#173b38; color:#fff; opacity:0; pointer-events:none; transition:opacity .2s; }
 #jasmin-admin .ja-toast.show { opacity:1; }
+
+/* ========================================================================
+   SECTION 5 — MOBILE LAYOUT
+   ======================================================================== */
 @media(max-width:650px){#jasmin-admin{padding-top:4px}#jasmin-admin .ja-top{align-items:center}#jasmin-admin .ja-top h1{font-size:28px}#jasmin-admin .ja-top .ja-secondary{padding:7px 11px}#jasmin-admin .ja-list,#jasmin-admin .ja-fields{grid-template-columns:1fr}#jasmin-admin .ja-wide{grid-column:auto}#jasmin-admin .ja-card{padding:16px}#jasmin-admin .ja-editor form{padding:16px}#jasmin-admin .ja-actions{bottom:-16px;margin:14px -16px -16px;padding:12px 16px}#jasmin-admin .ja-source-toolbar{align-items:flex-start;flex-direction:column}#jasmin-admin .ja-source-card{padding:14px}}

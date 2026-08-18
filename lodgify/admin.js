@@ -1,5 +1,8 @@
 <script type="text/javascript">
 (function initialiseJasminAdmin() {
+  /* ======================================================================
+     SECTION 1 — PAGE STARTUP, SETTINGS AND SHARED HELPERS
+     ====================================================================== */
   const root = document.querySelector("#jasmin-admin");
   if (!root) {
     window.setTimeout(initialiseJasminAdmin, 250);
@@ -30,6 +33,9 @@
   const dateLabel = value => value ? new Intl.DateTimeFormat("fr-FR",{dateStyle:"medium",timeStyle:"short"}).format(new Date(value)) : "Date à préciser";
   const showToast = text => { const toast=$("[data-ja-toast]"); toast.textContent=text; toast.classList.add("show"); setTimeout(()=>toast.classList.remove("show"),2400); };
 
+  /* ======================================================================
+     SECTION 2 — SECURE CONNECTION TO SUPABASE
+     ====================================================================== */
   async function api(path, options={}) {
     const response = await fetch(API+path, {...options, headers:{"Content-Type":"application/json","X-Capture-Token":token,...(options.headers||{})}});
     const data = await response.json();
@@ -37,6 +43,9 @@
     return data;
   }
 
+  /* ======================================================================
+     SECTION 3 — MOBILE SHARE AND DESKTOP BOOKMARKLET CAPTURE
+     ====================================================================== */
   async function capturePrefill() {
     const params=new URLSearchParams(location.hash.replace(/^#/,""));if(params.get("capture")!=="1")return;
     const payload={source_url:params.get("source_url")||"",title:params.get("title")||"",description:params.get("description")||"",image_url:params.get("image_url")||"",start_at:params.get("start_at")||"",end_at:params.get("end_at")||"",location_name:params.get("location_name")||""};
@@ -72,6 +81,9 @@
     open(editor+"#"+params,"jasmin-capture","popup=yes,width=760,height=900,resizable=yes,scrollbars=yes");
   }
 
+  /* ======================================================================
+     SECTION 4 — EVENT AND SOURCE LISTS, FILTERS AND NAVIGATION
+     ====================================================================== */
   function setOptions(selector, items) { $(selector).innerHTML = items.map(item=>'<option value="'+item.id+'">'+escapeHtml(item.name)+'</option>').join(""); }
   function render() {
     const choices=[["draft","Brouillons"],["published","Publiés"],["archived","Archivés"],["all","Tous"]];
@@ -90,6 +102,10 @@
   }
   async function loadSources(){const data=await api("/api/sources"),rank={high:0,normal:1,low:2};state.sources=data.sources.sort((left,right)=>Number(right.lifecycle_status==="review")-Number(left.lifecycle_status==="review")||(rank[left.priority]??9)-(rank[right.priority]??9)||left.name.localeCompare(right.name,"fr"));const reviewCount=state.sources.filter(source=>source.lifecycle_status==="review").length;$("[data-ja-section='sources']").textContent=reviewCount?"Sources ("+reviewCount+" à vérifier)":"Sources";$("[data-ja-sources-loading]").hidden=true;renderSources();}
   function showSection(section){state.section=section;$("[data-ja-events-panel]").hidden=section!=="events";$("[data-ja-sources-panel]").hidden=section!=="sources";root.querySelectorAll("[data-ja-section]").forEach(button=>button.classList.toggle("active",button.dataset.jaSection===section));if(section==="sources"&&state.sources.length===0)loadSources().catch(error=>showToast(error.message));}
+
+  /* ======================================================================
+     SECTION 5 — SOURCE EDITOR, SAVE AND DELETE
+     ====================================================================== */
   function openSourceEditor(id){
     const source=id?state.sources.find(item=>item.id===id):null;state.currentSource=source||null;
     $("[data-ja-source-title]").textContent=source?source.name:"Ajouter une source";
@@ -99,6 +115,10 @@
   function sourcePayload(){const lifecycle=$("#ja-source-lifecycle").value;return{name:$("#ja-source-name").value.trim(),url:$("#ja-source-link").value.trim(),source_type:$("#ja-source-type").value,lifecycle_status:lifecycle,priority:$("#ja-source-priority").value,area:$("#ja-source-area").value.trim(),notes:$("#ja-source-notes").value.trim(),access_notes:$("#ja-source-access-notes").value.trim(),added_by:$("#ja-source-added-by").value.trim(),review_reason:lifecycle==="review"?$("#ja-source-review-reason").value.trim():"",discovered_from_event_id:state.currentSource?.discovered_from_event_id||null,last_checked_at:state.currentSource?.last_checked_at||null,last_useful_at:state.currentSource?.last_useful_at||null};}
   async function saveSource(){const message=$("[data-ja-source-message]");message.textContent="Enregistrement…";try{const path=state.currentSource?"/api/sources/"+state.currentSource.id:"/api/sources";const data=await api(path,{method:state.currentSource?"PATCH":"POST",body:JSON.stringify(sourcePayload())});message.textContent="";$("[data-ja-source-editor]").close();showToast(data.message);await loadSources();}catch(error){message.textContent=error.message;}}
   async function deleteSource(){if(!state.currentSource)return;const name=state.currentSource.name;if(!window.confirm('Supprimer « '+name+' » ?\n\nCette source sera retirée définitivement de la liste de recherche. L’événement publié ne sera pas supprimé.'))return;const message=$("[data-ja-source-message]");message.textContent="Suppression…";try{const data=await api("/api/sources/"+state.currentSource.id,{method:"DELETE"});message.textContent="";$("[data-ja-source-editor]").close();showToast(data.message);await loadSources();}catch(error){message.textContent=error.message;}}
+
+  /* ======================================================================
+     SECTION 6 — EVENT EDITOR AND AUTOMATIC DATE DEFAULTS
+     ====================================================================== */
   async function load() {
     const data=await api("/api/events"); state={...state,...data};
     setOptions("#ja-category_id",state.categories); setOptions("#ja-status_id",state.statuses);
@@ -127,6 +147,9 @@
   async function save(){const message=$("[data-ja-form-message]");message.textContent="Enregistrement…";try{const data=await api("/api/events/"+state.current.id,{method:"PATCH",body:JSON.stringify(payload())});message.textContent="";$("[data-ja-editor]").close();showToast(data.message);await load();}catch(error){message.textContent=error.message;}}
   async function signIn(candidate){token=candidate;await load();if($("#ja-remember")?.checked)localStorage.setItem(TOKEN_KEY,token);else sessionStorage.setItem(TOKEN_KEY,token);$("[data-ja-login]").hidden=true;$("[data-ja-app]").hidden=false;capturePrefill().catch(error=>showToast(error.message));}
 
+  /* ======================================================================
+     SECTION 7 — BUTTONS, FORMS AND OTHER USER ACTIONS
+     ====================================================================== */
   $("[data-ja-login-form]").addEventListener("submit",async event=>{event.preventDefault();const message=$("[data-ja-login-message]");message.textContent="Connexion…";try{await signIn($("#ja-token").value);message.textContent="";}catch(error){token="";message.textContent="Code incorrect ou connexion impossible.";}});
   $("[data-ja-logout]").addEventListener("click",()=>{localStorage.removeItem(TOKEN_KEY);sessionStorage.removeItem(TOKEN_KEY);location.reload();});
   $("[data-ja-filters]").addEventListener("click",event=>{const button=event.target.closest("[data-filter]");if(button){state.filter=button.dataset.filter;render();}});

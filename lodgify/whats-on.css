@@ -1,3 +1,6 @@
+/* ========================================================================
+   SECTION 1 — BRAND COLOURS, TYPOGRAPHY AND PAGE WIDTH
+   ======================================================================== */
 .whats-on {
   --jasmin-ink: #333333;
   --jasmin-muted: #666666;
@@ -48,6 +51,9 @@
   font-size: 1rem;
 }
 
+/* ========================================================================
+   SECTION 2 — EVENT GRID AND CARD CONTAINER
+   ======================================================================== */
 .event-grid { display: grid; gap: 1.25rem; }
 
 .event-card {
@@ -60,6 +66,9 @@
 
 .event-card--featured { border-top: 4px solid var(--jasmin-pink); }
 
+/* ========================================================================
+   SECTION 3 — EVENT IMAGES AND FULL-SIZE POP-UP
+   ======================================================================== */
 .event-card__image-button {
   display: block;
   width: 100%;
@@ -126,6 +135,9 @@
   line-height: 1;
 }
 
+/* ========================================================================
+   SECTION 4 — EVENT TEXT, DETAILS AND CALL-TO-ACTION BUTTON
+   ======================================================================== */
 .event-card__content { padding: 1.25rem; }
 
 .event-card__title {
@@ -171,6 +183,9 @@
   outline-offset: 3px;
 }
 
+/* ========================================================================
+   SECTION 5 — EMPTY/ERROR MESSAGES AND LATER EVENTS
+   ======================================================================== */
 .feed-message {
   grid-column: 1 / -1;
   margin: 0;
@@ -204,6 +219,9 @@
   margin-top: 1.25rem;
 }
 
+/* ========================================================================
+   SECTION 6 — TABLET AND DESKTOP LAYOUT
+   ======================================================================== */
 @media (min-width: 44rem) {
   .event-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
