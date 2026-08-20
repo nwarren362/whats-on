@@ -111,7 +111,7 @@ Deno.serve(async (request) => {
     const [eventsResult, categoriesResult, statusesResult] = await Promise.all([
       supabase
         .from("events")
-        .select("id,title,description,start_at,end_at,expires_at,recurrence_frequency,recurrence_until,location_name,category_id,status_id,source_url,image_url,featured,editor_note,created_at,updated_at,categories(name,slug),statuses(name,slug)")
+        .select("id,title,description,start_at,end_at,expires_at,recurrence_frequency,recurrence_until,location_name,category_id,status_id,source_url,image_url,featured,editor_note,facebook_message,facebook_post_id,facebook_published_at,created_at,updated_at,categories(name,slug),statuses(name,slug)")
         .order("created_at", { ascending: false }),
       supabase.from("categories").select("id,name,slug,sort_order").eq("is_active", true).order("sort_order"),
       supabase.from("statuses").select("id,name,slug,sort_order").order("sort_order"),
@@ -238,6 +238,7 @@ Deno.serve(async (request) => {
     const sourceUrl = nullableText(body.source_url, 2_000);
     const imageUrl = nullableText(body.image_url, 2_000);
     const editorNote = nullableText(body.editor_note, 1_000);
+    const facebookMessage = nullableText(body.facebook_message, 5_000);
     const startAt = nullableTimestamp(body.start_at);
     const endAt = nullableTimestamp(body.end_at);
     const expiresAt = nullableTimestamp(body.expires_at);
@@ -248,7 +249,7 @@ Deno.serve(async (request) => {
     const statusId = typeof body.status_id === "string" ? body.status_id : "";
 
     if (!title || description === undefined || locationName === undefined ||
-      sourceUrl === undefined || imageUrl === undefined || editorNote === undefined ||
+      sourceUrl === undefined || imageUrl === undefined || editorNote === undefined || facebookMessage === undefined ||
       startAt === undefined || endAt === undefined || expiresAt === undefined ||
       recurrenceUntil === undefined || recurrenceFrequency === undefined ||
       !UUID_PATTERN.test(categoryId) || !UUID_PATTERN.test(statusId)) {
@@ -300,10 +301,11 @@ Deno.serve(async (request) => {
         image_url: imageUrl,
         featured: body.featured === true,
         editor_note: editorNote,
+        facebook_message: facebookMessage,
         updated_at: new Date().toISOString(),
       })
       .eq("id", eventId)
-      .select("id,title,source_url,status_id,source_tracking_ignored_url")
+      .select("id,title,source_url,status_id,source_tracking_ignored_url,facebook_message,facebook_post_id,facebook_published_at")
       .single();
 
     if (error) {

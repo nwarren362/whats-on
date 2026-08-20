@@ -60,6 +60,21 @@
         <div class="ja-wide"><label for="ja-image_url">Lien de l’image (facultatif)</label><input id="ja-image_url" type="url"></div>
         <div class="ja-wide ja-check"><input id="ja-featured" type="checkbox"><label for="ja-featured">Mettre en avant</label></div>
         <div class="ja-wide"><label for="ja-editor_note">Note privée</label><textarea id="ja-editor_note" maxlength="1000"></textarea></div>
+        <section class="ja-wide ja-facebook-panel">
+          <div class="ja-facebook-head"><div><p class="ja-eyebrow">Réseaux sociaux</p><h3>Publication Facebook</h3></div><span class="ja-facebook-status" data-ja-facebook-status></span></div>
+          <p data-ja-facebook-unavailable>Enregistrez d’abord cet événement avec le statut « Publié », puis rouvrez-le pour préparer sa publication Facebook.</p>
+          <div data-ja-facebook-ready hidden>
+            <label for="ja-facebook_message">Texte proposé</label>
+            <textarea id="ja-facebook_message" maxlength="5000"></textarea>
+            <small>Vous pouvez modifier ce texte avant publication. Enregistrez d’abord toute autre modification apportée à l’événement.</small>
+            <div class="ja-facebook-buttons"><button class="ja-secondary" type="button" data-ja-generate-facebook>Regénérer le texte</button><button type="button" data-ja-publish-facebook>Publier sur Facebook</button></div>
+          </div>
+          <div data-ja-facebook-published hidden>
+            <p>Publié sur Facebook le <strong data-ja-facebook-date></strong>.</p>
+            <a data-ja-facebook-link target="_blank" rel="noopener">Voir la publication sur Facebook</a>
+          </div>
+          <p class="ja-message" data-ja-facebook-message></p>
+        </section>
       </div>
       <p class="ja-message" data-ja-form-message></p>
       <footer class="ja-actions"><button class="ja-danger" type="button" data-ja-archive>Archiver</button><button type="submit">Enregistrer</button></footer>

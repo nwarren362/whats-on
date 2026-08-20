@@ -18,8 +18,9 @@
 
   const API = "https://jrluybdxwzyyrinfrbly.supabase.co/functions/v1/manage-events";
   const CAPTURE_API = "https://jrluybdxwzyyrinfrbly.supabase.co/functions/v1/capture-event";
+  const FACEBOOK_API = "https://jrluybdxwzyyrinfrbly.supabase.co/functions/v1/facebook-publisher";
   const TOKEN_KEY = "jasmin_capture_token";
-  const fields = ["title","description","start_at","end_at","recurrence_frequency","recurrence_until","expires_at","location_name","category_id","status_id","source_url","image_url","featured","editor_note"];
+  const fields = ["title","description","start_at","end_at","recurrence_frequency","recurrence_until","expires_at","location_name","category_id","status_id","source_url","image_url","featured","editor_note","facebook_message"];
   const timestampFields = ["start_at","end_at","recurrence_until","expires_at"];
   let token = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || "";
   let state = { events: [], categories: [], statuses: [], sources: [], filter: "draft", sourceFilter: "review", current: null, currentSource: null, section: "events" };
@@ -131,6 +132,8 @@
     automaticDates={end:!event.end_at,expires:!event.expires_at};
     applyDateDefaults();
     updateRecurrenceFields();
+    if(!event.facebook_message&&!event.facebook_post_id)$("#ja-facebook_message").value=facebookSuggestion();
+    renderFacebookPanel();
     $("[data-ja-open-source]").href=event.source_url||"#"; $("[data-ja-open-source]").hidden=!event.source_url; $("[data-ja-form-message]").textContent=""; $("[data-ja-editor]").showModal();
   }
   function payload(){const data={};fields.forEach(name=>{const element=$("#ja-"+name);data[name]=name==="featured"?element.checked:timestampFields.includes(name)?toIso(element.value):element.value.trim();});if(data.recurrence_frequency==="none")data.recurrence_until=null;return data;}
@@ -148,7 +151,44 @@
   async function signIn(candidate){token=candidate;await load();if($("#ja-remember")?.checked)localStorage.setItem(TOKEN_KEY,token);else sessionStorage.setItem(TOKEN_KEY,token);$("[data-ja-login]").hidden=true;$("[data-ja-app]").hidden=false;capturePrefill().catch(error=>showToast(error.message));}
 
   /* ======================================================================
-     SECTION 7 — BUTTONS, FORMS AND OTHER USER ACTIONS
+     SECTION 7 — FACEBOOK CAPTION PREVIEW AND PUBLICATION
+     ====================================================================== */
+  function facebookPostUrl(postId){const parts=String(postId||"").split("_");return parts.length===2?"https://www.facebook.com/"+encodeURIComponent(parts[0])+"/posts/"+encodeURIComponent(parts[1]):"https://www.facebook.com/"+encodeURIComponent(postId||"");}
+  function facebookDateText(){
+    const start=$("#ja-start_at").value;if(!start)return "Date à confirmer";
+    const date=new Date(start),datePart=new Intl.DateTimeFormat("fr-FR",{weekday:"long",day:"numeric",month:"long",timeZone:"Europe/Paris"}).format(date),timePart=new Intl.DateTimeFormat("fr-FR",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/Paris"}).format(date).replace(":","h");
+    if($("#ja-recurrence_frequency").value==="weekly"&&$("#ja-recurrence_until").value){const until=new Intl.DateTimeFormat("fr-FR",{day:"numeric",month:"long",timeZone:"Europe/Paris"}).format(new Date($("#ja-recurrence_until").value));return "Chaque "+datePart.split(" ")[0]+" à "+timePart+", jusqu’au "+until;}
+    return datePart.charAt(0).toUpperCase()+datePart.slice(1)+" à "+timePart;
+  }
+  function facebookSuggestion(){
+    const title=$("#ja-title").value.trim()||state.current?.title||"Événement local",description=$("#ja-description").value.trim(),location=$("#ja-location_name").value.trim();
+    return ["✨ "+title,"","📅 "+facebookDateText(),location?"📍 "+location:"",description?"\n"+description:"","","👉 Retrouvez cet événement et nos autres idées locales :","https://jasmin-cottage.com/fr/agenda-local"].filter(line=>line!=="").join("\n");
+  }
+  function renderFacebookPanel(){
+    const event=state.current,published=!!event?.facebook_post_id,agendaPublished=status(event)==="published";
+    $("[data-ja-facebook-unavailable]").hidden=published||agendaPublished;
+    $("[data-ja-facebook-ready]").hidden=published||!agendaPublished;
+    $("[data-ja-facebook-published]").hidden=!published;
+    $("[data-ja-facebook-status]").textContent=published?"Publié":agendaPublished?"Prêt":"Non disponible";
+    $("[data-ja-facebook-message]").textContent="";
+    if(published){$("[data-ja-facebook-date]").textContent=dateLabel(event.facebook_published_at);$("[data-ja-facebook-link]").href=facebookPostUrl(event.facebook_post_id);}
+  }
+  async function publishFacebook(){
+    if(!state.current||state.current.facebook_post_id)return;
+    const message=$("#ja-facebook_message").value.trim(),notice=$("[data-ja-facebook-message]"),button=$("[data-ja-publish-facebook]");
+    if(!message){notice.textContent="Ajoutez un texte avant de publier.";return;}
+    if(!window.confirm("Publier maintenant cet événement sur la page Facebook Jasmin Cottage - Montayral ?\n\nCette action ne peut pas être annulée depuis l’agenda."))return;
+    notice.textContent="Publication en cours…";button.disabled=true;
+    try{
+      const response=await fetch(FACEBOOK_API,{method:"POST",headers:{"Content-Type":"application/json","X-Capture-Token":token},body:JSON.stringify({action:"publish-event",event_id:state.current.id,message,confirmation:"PUBLISH EVENT"})});
+      const data=await response.json();if(!response.ok)throw new Error(data.error||"Impossible de publier sur Facebook");
+      state.current.facebook_message=message;state.current.facebook_post_id=data.post_id;state.current.facebook_published_at=data.event.facebook_published_at;notice.textContent="";renderFacebookPanel();showToast(data.message);
+      const stored=state.events.find(event=>event.id===state.current.id);if(stored)Object.assign(stored,state.current);
+    }catch(error){notice.textContent=error.message;}finally{button.disabled=false;}
+  }
+
+  /* ======================================================================
+     SECTION 8 — BUTTONS, FORMS AND OTHER USER ACTIONS
      ====================================================================== */
   $("[data-ja-login-form]").addEventListener("submit",async event=>{event.preventDefault();const message=$("[data-ja-login-message]");message.textContent="Connexion…";try{await signIn($("#ja-token").value);message.textContent="";}catch(error){token="";message.textContent="Code incorrect ou connexion impossible.";}});
   $("[data-ja-logout]").addEventListener("click",()=>{localStorage.removeItem(TOKEN_KEY);sessionStorage.removeItem(TOKEN_KEY);location.reload();});
@@ -170,6 +210,8 @@
   $("#ja-end_at").addEventListener("input",()=>{automaticDates.end=false;if(!$("#ja-expires_at").value||automaticDates.expires)applyExpiryDefault();});
   $("#ja-expires_at").addEventListener("input",()=>{automaticDates.expires=false;});
   $("#ja-recurrence_frequency").addEventListener("change",updateRecurrenceFields);
+  $("[data-ja-generate-facebook]").addEventListener("click",()=>{$("#ja-facebook_message").value=facebookSuggestion();});
+  $("[data-ja-publish-facebook]").addEventListener("click",publishFacebook);
   $("[data-ja-bookmarklet]").href="javascript:("+desktopCaptureBookmarklet.toString()+")()";
   $("[data-ja-archive]").addEventListener("click",()=>{const archived=state.statuses.find(item=>item.slug==="archived");if(archived){$("#ja-status_id").value=archived.id;save();}});
   if(token) signIn(token).catch(()=>{localStorage.removeItem(TOKEN_KEY);sessionStorage.removeItem(TOKEN_KEY);});

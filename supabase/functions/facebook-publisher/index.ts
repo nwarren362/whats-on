@@ -1,18 +1,26 @@
+import { createClient } from "npm:@supabase/supabase-js@2";
+
 type RequestPayload = {
   action?: unknown;
+  event_id?: unknown;
+  message?: unknown;
   confirmation?: unknown;
+};
+
+type MetaError = {
+  message?: string;
+  type?: string;
+  code?: number;
 };
 
 type MetaPageResponse = {
   id?: string;
   name?: string;
   access_token?: string;
-  error?: {
-    message?: string;
-    type?: string;
-    code?: number;
-  };
+  error?: MetaError;
 };
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const JSON_HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
@@ -25,14 +33,57 @@ function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
 }
 
+function text(value: unknown, maxLength: number) {
+  return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+}
+
+function facebookPostUrl(postId: string) {
+  const [pageId, pagePostId] = postId.split("_");
+  return pageId && pagePostId
+    ? `https://www.facebook.com/${encodeURIComponent(pageId)}/posts/${encodeURIComponent(pagePostId)}`
+    : `https://www.facebook.com/${encodeURIComponent(postId)}`;
+}
+
+async function getPageAccess(pageId: string, systemUserToken: string) {
+  const endpoint = new URL(`https://graph.facebook.com/v26.0/${encodeURIComponent(pageId)}`);
+  endpoint.searchParams.set("fields", "id,name,access_token");
+  endpoint.searchParams.set("access_token", systemUserToken);
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, { signal: AbortSignal.timeout(10_000) });
+  } catch (error) {
+    console.error("Meta Page-token request failed", error);
+    return { error: json({ error: "Could not contact Meta" }, 502) };
+  }
+
+  let data: MetaPageResponse;
+  try {
+    data = await response.json();
+  } catch {
+    console.error("Meta returned a non-JSON Page-token response.");
+    return { error: json({ error: "Invalid response from Meta" }, 502) };
+  }
+
+  if (!response.ok || data.error || data.id !== pageId || !data.name || !data.access_token) {
+    console.error("Meta did not provide the required Page access", {
+      status: response.status,
+      returnedPageId: data.id,
+      type: data.error?.type,
+      code: data.error?.code,
+      message: data.error?.message,
+    });
+    return { error: json({ error: "Facebook Page authentication failed" }, 502) };
+  }
+
+  return { page: { id: data.id, name: data.name, accessToken: data.access_token } };
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: JSON_HEADERS });
   }
-
-  if (request.method !== "POST") {
-    return json({ error: "Method not allowed" }, 405);
-  }
+  if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   const captureToken = Deno.env.get("CAPTURE_TOKEN");
   if (!captureToken || request.headers.get("X-Capture-Token") !== captureToken) {
@@ -46,7 +97,7 @@ Deno.serve(async (request) => {
     return json({ error: "Invalid JSON" }, 400);
   }
 
-  if (payload.action !== "verify" && payload.action !== "publish-test") {
+  if (payload.action !== "verify" && payload.action !== "publish-event") {
     return json({ error: "Unsupported action" }, 400);
   }
 
@@ -57,64 +108,88 @@ Deno.serve(async (request) => {
     return json({ error: "Server configuration error" }, 500);
   }
 
-  if (payload.action === "publish-test") {
-    if (payload.confirmation !== "PUBLISH TEST POST") {
-      return json({ error: "Exact publication confirmation required" }, 400);
-    }
+  const pageAccess = await getPageAccess(pageId, systemUserToken);
+  if (pageAccess.error) return pageAccess.error;
 
-    const message = [
-      "TEST TECHNIQUE — Agenda Jasmin Cottage",
-      "",
-      "Ceci est un essai temporaire de publication automatisée. Aucun événement réel n’est annoncé dans ce message.",
-      "",
-      "https://jasmin-cottage.com/fr/agenda-local",
-    ].join("\n");
-
-    const pageTokenEndpoint = new URL(
-      `https://graph.facebook.com/v26.0/${encodeURIComponent(pageId)}`,
-    );
-    pageTokenEndpoint.searchParams.set("fields", "id,name,access_token");
-    pageTokenEndpoint.searchParams.set("access_token", systemUserToken);
-
-    let pageTokenResponse: Response;
-    try {
-      pageTokenResponse = await fetch(pageTokenEndpoint, {
-        signal: AbortSignal.timeout(10_000),
-      });
-    } catch (error) {
-      console.error("Meta Page-token request failed", error);
-      return json({ error: "Could not contact Meta" }, 502);
-    }
-
-    let pageTokenData: MetaPageResponse;
-    try {
-      pageTokenData = await pageTokenResponse.json();
-    } catch {
-      console.error("Meta returned a non-JSON Page-token response.");
-      return json({ error: "Invalid response from Meta" }, 502);
-    }
-
-    if (
-      !pageTokenResponse.ok ||
-      pageTokenData.error ||
-      pageTokenData.id !== pageId ||
-      !pageTokenData.access_token
-    ) {
-      console.error("Meta did not provide the required Page token", {
-        status: pageTokenResponse.status,
-        returnedPageId: pageTokenData.id,
-        type: pageTokenData.error?.type,
-        code: pageTokenData.error?.code,
-        message: pageTokenData.error?.message,
-      });
-      return json({ error: "Could not obtain Facebook Page access" }, 502);
-    }
-
-    const form = new URLSearchParams({
-      message,
-      access_token: pageTokenData.access_token,
+  if (payload.action === "verify") {
+    return json({
+      ok: true,
+      page: { id: pageAccess.page!.id, name: pageAccess.page!.name },
+      message: "Facebook connection verified. No post was created.",
     });
+  }
 
+  if (payload.confirmation !== "PUBLISH EVENT") {
+    return json({ error: "Exact publication confirmation required" }, 400);
+  }
+
+  const eventId = typeof payload.event_id === "string" ? payload.event_id : "";
+  const message = text(payload.message, 5_000);
+  if (!UUID_PATTERN.test(eventId) || !message) {
+    return json({ error: "A valid event_id and Facebook message are required" }, 400);
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceRoleKey) return json({ error: "Server configuration error" }, 500);
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const { data: event, error: eventError } = await supabase
+    .from("events")
+    .select("id,title,image_url,facebook_post_id,statuses(slug)")
+    .eq("id", eventId)
+    .single();
+
+  if (eventError || !event) return json({ error: "Event not found" }, 404);
+  const eventStatus = Array.isArray(event.statuses) ? event.statuses[0]?.slug : event.statuses?.slug;
+  if (eventStatus !== "published") {
+    return json({ error: "Only published agenda events can be posted to Facebook" }, 409);
+  }
+  if (event.facebook_post_id) {
+    return json({
+      error: "This event has already been published to Facebook",
+      post_id: event.facebook_post_id,
+      post_url: facebookPostUrl(event.facebook_post_id),
+    }, 409);
+  }
+
+  let publishData: { id?: string; post_id?: string; error?: MetaError } | null = null;
+
+  if (event.image_url) {
+    try {
+      const photoResponse = await fetch(
+        `https://graph.facebook.com/v26.0/${encodeURIComponent(pageId)}/photos`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            url: event.image_url,
+            caption: message,
+            access_token: pageAccess.page!.accessToken,
+          }),
+          signal: AbortSignal.timeout(15_000),
+        },
+      );
+      const photoData = await photoResponse.json();
+      if (photoResponse.ok && !photoData.error && (photoData.post_id || photoData.id)) {
+        publishData = photoData;
+      } else {
+        console.warn("Meta could not publish the event image; falling back to a text post", {
+          status: photoResponse.status,
+          type: photoData.error?.type,
+          code: photoData.error?.code,
+          message: photoData.error?.message,
+        });
+      }
+    } catch (error) {
+      console.warn("Facebook image publication failed; falling back to a text post", error);
+    }
+  }
+
+  if (!publishData) {
     let publishResponse: Response;
     try {
       publishResponse = await fetch(
@@ -122,16 +197,18 @@ Deno.serve(async (request) => {
         {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: form,
+          body: new URLSearchParams({
+            message,
+            access_token: pageAccess.page!.accessToken,
+          }),
           signal: AbortSignal.timeout(10_000),
         },
       );
     } catch (error) {
-      console.error("Meta test publication request failed", error);
+      console.error("Meta event publication request failed", error);
       return json({ error: "Could not contact Meta" }, 502);
     }
 
-    let publishData: { id?: string; error?: MetaPageResponse["error"] };
     try {
       publishData = await publishResponse.json();
     } catch {
@@ -139,68 +216,59 @@ Deno.serve(async (request) => {
       return json({ error: "Invalid response from Meta" }, 502);
     }
 
-    if (!publishResponse.ok || publishData.error || !publishData.id) {
-      console.error("Meta rejected the test publication", {
+    if (!publishResponse.ok || publishData?.error || !publishData?.id) {
+      console.error("Meta rejected the event publication", {
         status: publishResponse.status,
-        type: publishData.error?.type,
-        code: publishData.error?.code,
-        message: publishData.error?.message,
+        type: publishData?.error?.type,
+        code: publishData?.error?.code,
+        message: publishData?.error?.message,
       });
-      return json({ error: "Facebook test publication failed" }, 502);
+      return json({ error: "Facebook publication failed" }, 502);
     }
+  }
 
+  const publishedPostId = publishData.post_id || publishData.id;
+  if (!publishedPostId) {
+    console.error("Meta rejected the event publication", {
+      type: publishData.error?.type,
+      code: publishData.error?.code,
+      message: publishData.error?.message,
+    });
+    return json({ error: "Facebook publication failed" }, 502);
+  }
+
+  const publishedAt = new Date().toISOString();
+  const { data: savedEvent, error: saveError } = await supabase
+    .from("events")
+    .update({
+      facebook_message: message,
+      facebook_post_id: publishedPostId,
+      facebook_published_at: publishedAt,
+      updated_at: publishedAt,
+    })
+    .eq("id", eventId)
+    .is("facebook_post_id", null)
+    .select("id,facebook_post_id,facebook_published_at")
+    .single();
+
+  if (saveError || !savedEvent) {
+    console.error("Facebook post was created but could not be recorded", {
+      eventId,
+      postId: publishedPostId,
+      saveError,
+    });
     return json({
-      ok: true,
-      post_id: publishData.id,
-      message: "Test post published to Facebook.",
-    }, 201);
-  }
-
-  const endpoint = new URL(`https://graph.facebook.com/v26.0/${encodeURIComponent(pageId)}`);
-  endpoint.searchParams.set("fields", "id,name");
-  endpoint.searchParams.set("access_token", systemUserToken);
-
-  let response: Response;
-  try {
-    response = await fetch(endpoint, { signal: AbortSignal.timeout(10_000) });
-  } catch (error) {
-    console.error("Meta verification request failed", error);
-    return json({ error: "Could not contact Meta" }, 502);
-  }
-
-  let data: MetaPageResponse;
-  try {
-    data = await response.json();
-  } catch {
-    console.error("Meta returned a non-JSON verification response.");
-    return json({ error: "Invalid response from Meta" }, 502);
-  }
-
-  if (!response.ok || data.error) {
-    console.error("Meta rejected the verification request", {
-      status: response.status,
-      type: data.error?.type,
-      code: data.error?.code,
-      message: data.error?.message,
-    });
-    return json({ error: "Meta authentication failed" }, 502);
-  }
-
-  if (data.id !== pageId || !data.name) {
-    console.error("Meta returned an unexpected Page identity", {
-      expectedPageId: pageId,
-      returnedPageId: data.id,
-      returnedName: data.name,
-    });
-    return json({ error: "Unexpected Facebook Page identity" }, 502);
+      error: "The Facebook post was created but could not be recorded",
+      post_id: publishedPostId,
+      post_url: facebookPostUrl(publishedPostId),
+    }, 500);
   }
 
   return json({
     ok: true,
-    page: {
-      id: data.id,
-      name: data.name,
-    },
-    message: "Facebook connection verified. No post was created.",
-  });
+    event: savedEvent,
+    post_id: publishedPostId,
+    post_url: facebookPostUrl(publishedPostId),
+    message: `« ${event.title} » a été publié sur Facebook.`,
+  }, 201);
 });
