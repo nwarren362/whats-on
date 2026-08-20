@@ -1,10 +1,12 @@
 type RequestPayload = {
   action?: unknown;
+  confirmation?: unknown;
 };
 
 type MetaPageResponse = {
   id?: string;
   name?: string;
+  access_token?: string;
   error?: {
     message?: string;
     type?: string;
@@ -44,7 +46,7 @@ Deno.serve(async (request) => {
     return json({ error: "Invalid JSON" }, 400);
   }
 
-  if (payload.action !== "verify") {
+  if (payload.action !== "verify" && payload.action !== "publish-test") {
     return json({ error: "Unsupported action" }, 400);
   }
 
@@ -53,6 +55,105 @@ Deno.serve(async (request) => {
   if (!pageId || !systemUserToken) {
     console.error("Meta publishing secrets are missing.");
     return json({ error: "Server configuration error" }, 500);
+  }
+
+  if (payload.action === "publish-test") {
+    if (payload.confirmation !== "PUBLISH TEST POST") {
+      return json({ error: "Exact publication confirmation required" }, 400);
+    }
+
+    const message = [
+      "TEST TECHNIQUE — Agenda Jasmin Cottage",
+      "",
+      "Ceci est un essai temporaire de publication automatisée. Aucun événement réel n’est annoncé dans ce message.",
+      "",
+      "https://jasmin-cottage.com/fr/agenda-local",
+    ].join("\n");
+
+    const pageTokenEndpoint = new URL(
+      `https://graph.facebook.com/v26.0/${encodeURIComponent(pageId)}`,
+    );
+    pageTokenEndpoint.searchParams.set("fields", "id,name,access_token");
+    pageTokenEndpoint.searchParams.set("access_token", systemUserToken);
+
+    let pageTokenResponse: Response;
+    try {
+      pageTokenResponse = await fetch(pageTokenEndpoint, {
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch (error) {
+      console.error("Meta Page-token request failed", error);
+      return json({ error: "Could not contact Meta" }, 502);
+    }
+
+    let pageTokenData: MetaPageResponse;
+    try {
+      pageTokenData = await pageTokenResponse.json();
+    } catch {
+      console.error("Meta returned a non-JSON Page-token response.");
+      return json({ error: "Invalid response from Meta" }, 502);
+    }
+
+    if (
+      !pageTokenResponse.ok ||
+      pageTokenData.error ||
+      pageTokenData.id !== pageId ||
+      !pageTokenData.access_token
+    ) {
+      console.error("Meta did not provide the required Page token", {
+        status: pageTokenResponse.status,
+        returnedPageId: pageTokenData.id,
+        type: pageTokenData.error?.type,
+        code: pageTokenData.error?.code,
+        message: pageTokenData.error?.message,
+      });
+      return json({ error: "Could not obtain Facebook Page access" }, 502);
+    }
+
+    const form = new URLSearchParams({
+      message,
+      access_token: pageTokenData.access_token,
+    });
+
+    let publishResponse: Response;
+    try {
+      publishResponse = await fetch(
+        `https://graph.facebook.com/v26.0/${encodeURIComponent(pageId)}/feed`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: form,
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+    } catch (error) {
+      console.error("Meta test publication request failed", error);
+      return json({ error: "Could not contact Meta" }, 502);
+    }
+
+    let publishData: { id?: string; error?: MetaPageResponse["error"] };
+    try {
+      publishData = await publishResponse.json();
+    } catch {
+      console.error("Meta returned a non-JSON publication response.");
+      return json({ error: "Invalid response from Meta" }, 502);
+    }
+
+    if (!publishResponse.ok || publishData.error || !publishData.id) {
+      console.error("Meta rejected the test publication", {
+        status: publishResponse.status,
+        type: publishData.error?.type,
+        code: publishData.error?.code,
+        message: publishData.error?.message,
+      });
+      return json({ error: "Facebook test publication failed" }, 502);
+    }
+
+    return json({
+      ok: true,
+      post_id: publishData.id,
+      message: "Test post published to Facebook.",
+    }, 201);
   }
 
   const endpoint = new URL(`https://graph.facebook.com/v26.0/${encodeURIComponent(pageId)}`);
