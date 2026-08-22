@@ -111,7 +111,7 @@ Deno.serve(async (request) => {
     const [eventsResult, categoriesResult, statusesResult] = await Promise.all([
       supabase
         .from("events")
-        .select("id,title,description,start_at,end_at,expires_at,recurrence_frequency,recurrence_until,location_name,category_id,status_id,source_url,image_url,featured,editor_note,facebook_message,facebook_post_id,facebook_published_at,created_at,updated_at,categories(name,slug),statuses(name,slug)")
+        .select("id,title,description,start_at,end_at,expires_at,recurrence_frequency,recurrence_until,location_name,category_id,status_id,source_url,image_url,featured,editor_note,facebook_message,facebook_post_id,facebook_published_at,facebook_publish_error,facebook_publish_attempted_at,created_at,updated_at,categories(name,slug),statuses(name,slug)")
         .order("created_at", { ascending: false }),
       supabase.from("categories").select("id,name,slug,sort_order").eq("is_active", true).order("sort_order"),
       supabase.from("statuses").select("id,name,slug,sort_order").order("sort_order"),
@@ -218,6 +218,65 @@ Deno.serve(async (request) => {
       return json({ error: "Impossible de supprimer la source" }, 500);
     }
     return json({ ok: true, message: `Source « ${source.name} » supprimée.` });
+  }
+
+  const imageCheckMatch = pathname.match(/\/api\/events\/([0-9a-f-]+)\/image-check$/i);
+  if (imageCheckMatch && request.method === "POST") {
+    const eventId = imageCheckMatch[1];
+    if (!UUID_PATTERN.test(eventId)) return json({ error: "Invalid event id" }, 400);
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: "Invalid JSON" }, 400);
+    }
+    const imageUrl = nullableText(body.image_url, 2_000);
+    if (imageUrl === undefined) return json({ error: "Invalid image URL" }, 400);
+    const checkedAt = new Date().toISOString();
+    if (!imageUrl) {
+      await supabase.from("events").update({
+        facebook_publish_error: null,
+        facebook_publish_attempted_at: checkedAt,
+        updated_at: checkedAt,
+      }).eq("id", eventId).is("facebook_post_id", null);
+      return json({ ok: true, status: "no_image", message: "No image supplied" });
+    }
+
+    let parsed: URL;
+    try {
+      parsed = new URL(imageUrl);
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new Error();
+    } catch {
+      return json({ error: "Invalid image URL" }, 400);
+    }
+
+    let works = false;
+    try {
+      const response = await fetch(parsed, {
+        headers: { Accept: "image/*" },
+        redirect: "follow",
+        signal: AbortSignal.timeout(10_000),
+      });
+      const contentType = response.headers.get("content-type")?.toLowerCase() || "";
+      works = response.ok && contentType.startsWith("image/");
+      await response.body?.cancel();
+    } catch (error) {
+      console.warn("Event image check failed", { eventId, error });
+    }
+
+    const errorMessage = works ? null : "Image unavailable — replace or remove it before publishing to Facebook.";
+    const { error: saveError } = await supabase.from("events").update({
+      facebook_publish_error: errorMessage,
+      facebook_publish_attempted_at: checkedAt,
+      updated_at: checkedAt,
+    }).eq("id", eventId).is("facebook_post_id", null);
+    if (saveError) {
+      console.error("Could not record image check", saveError);
+      return json({ error: "Could not record the image check" }, 500);
+    }
+    return works
+      ? json({ ok: true, status: "working", message: "Image is working" })
+      : json({ error: errorMessage!, status: "unavailable", needs_attention: true }, 422);
   }
 
   const eventMatch = pathname.match(/\/api\/events\/([0-9a-f-]+)$/i);

@@ -137,6 +137,16 @@ Deno.serve(async (request) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  async function rememberPublicationError(eventId: string, error: string) {
+    const attemptedAt = new Date().toISOString();
+    const { error: saveError } = await supabase.from("events").update({
+      facebook_publish_error: error.slice(0, 1_000),
+      facebook_publish_attempted_at: attemptedAt,
+      updated_at: attemptedAt,
+    }).eq("id", eventId).is("facebook_post_id", null);
+    if (saveError) console.error("Could not record Facebook publication error", saveError);
+  }
+
   const { data: event, error: eventError } = await supabase
     .from("events")
     .select("id,title,image_url,facebook_post_id,statuses(slug)")
@@ -177,19 +187,26 @@ Deno.serve(async (request) => {
       if (photoResponse.ok && !photoData.error && (photoData.post_id || photoData.id)) {
         publishData = photoData;
       } else {
-        console.warn("Meta could not publish the event image; falling back to a text post", {
+        console.warn("Meta could not publish the event image", {
           status: photoResponse.status,
           type: photoData.error?.type,
           code: photoData.error?.code,
           message: photoData.error?.message,
         });
+        const errorMessage = "The image is unavailable to Facebook. Replace or remove the image link, then try again.";
+        await rememberPublicationError(eventId, errorMessage);
+        return json({ error: errorMessage, needs_attention: true }, 422);
       }
     } catch (error) {
-      console.warn("Facebook image publication failed; falling back to a text post", error);
+      console.warn("Facebook image publication failed", error);
+      const errorMessage = "Facebook could not retrieve the image. Replace or remove the image link, then try again.";
+      await rememberPublicationError(eventId, errorMessage);
+      return json({ error: errorMessage, needs_attention: true }, 422);
     }
   }
 
-  if (!publishData) {
+  // A text-only post is intentional only when the event has no image URL.
+  if (!publishData && !event.image_url) {
     let publishResponse: Response;
     try {
       publishResponse = await fetch(
@@ -206,14 +223,18 @@ Deno.serve(async (request) => {
       );
     } catch (error) {
       console.error("Meta event publication request failed", error);
-      return json({ error: "Could not contact Meta" }, 502);
+      const errorMessage = "Could not contact Meta";
+      await rememberPublicationError(eventId, errorMessage);
+      return json({ error: errorMessage, needs_attention: true }, 502);
     }
 
     try {
       publishData = await publishResponse.json();
     } catch {
       console.error("Meta returned a non-JSON publication response.");
-      return json({ error: "Invalid response from Meta" }, 502);
+      const errorMessage = "Invalid response from Meta";
+      await rememberPublicationError(eventId, errorMessage);
+      return json({ error: errorMessage, needs_attention: true }, 502);
     }
 
     if (!publishResponse.ok || publishData?.error || !publishData?.id) {
@@ -223,7 +244,9 @@ Deno.serve(async (request) => {
         code: publishData?.error?.code,
         message: publishData?.error?.message,
       });
-      return json({ error: "Facebook publication failed" }, 502);
+      const errorMessage = "Facebook publication failed";
+      await rememberPublicationError(eventId, errorMessage);
+      return json({ error: errorMessage, needs_attention: true }, 502);
     }
   }
 
@@ -244,11 +267,13 @@ Deno.serve(async (request) => {
       facebook_message: message,
       facebook_post_id: publishedPostId,
       facebook_published_at: publishedAt,
+      facebook_publish_error: null,
+      facebook_publish_attempted_at: publishedAt,
       updated_at: publishedAt,
     })
     .eq("id", eventId)
     .is("facebook_post_id", null)
-    .select("id,facebook_post_id,facebook_published_at")
+    .select("id,facebook_post_id,facebook_published_at,facebook_publish_error,facebook_publish_attempted_at")
     .single();
 
   if (saveError || !savedEvent) {

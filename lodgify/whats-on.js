@@ -1,6 +1,11 @@
 (function () {
   "use strict";
 
+  // Public browser credentials. The publishable key is intentionally safe
+  // to expose here; Supabase Row Level Security controls what visitors see.
+  const SUPABASE_URL = "https://jrluybdxwzyyrinfrbly.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_h2Rmdew3NOjixyoqTxfgpA_1EuPI9na";
+
   /* ======================================================================
      SECTION 1 — PAGE SETUP AND DISPLAY SETTINGS
      ====================================================================== */

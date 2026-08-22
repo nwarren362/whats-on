@@ -1,3 +1,241 @@
+/* PUBLIC WHAT\047S ON PAGE */
+/* ========================================================================
+   SECTION 1 — BRAND COLOURS, TYPOGRAPHY AND PAGE WIDTH
+   ======================================================================== */
+.whats-on {
+  --jasmin-ink: #333333;
+  --jasmin-muted: #666666;
+  --jasmin-teal: #28bcae;
+  --jasmin-teal-dark: #209b90;
+  --jasmin-pink: #ff3b59;
+  --jasmin-pink-dark: #e9324e;
+  --jasmin-border: #e6e6e6;
+  --jasmin-soft: #f7f7f7;
+  color: var(--jasmin-ink);
+  font-family: Roboto, Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.whats-on,
+.whats-on * { box-sizing: border-box; }
+
+.whats-on {
+  width: min(100% - 2rem, 63rem);
+  margin-inline: auto;
+  padding-block: 0 4rem;
+}
+
+.whats-on__intro { max-width: 43rem; margin-bottom: 2rem; }
+
+.whats-on__eyebrow,
+.event-card__category {
+  margin: 0 0 0.45rem;
+  color: var(--jasmin-teal-dark);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.whats-on h1 {
+  margin: 0 0 0.8rem;
+  font-family: inherit;
+  font-size: clamp(2rem, 7vw, 2.75rem);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.whats-on__intro > p:last-child {
+  margin: 0;
+  color: var(--jasmin-muted);
+  font-size: 1rem;
+}
+
+/* ========================================================================
+   SECTION 2 — EVENT GRID AND CARD CONTAINER
+   ======================================================================== */
+.event-grid { display: grid; gap: 1.25rem; }
+
+.event-card {
+  overflow: hidden;
+  border: 1px solid var(--jasmin-border);
+  border-radius: 0.25rem;
+  background: #fff;
+  box-shadow: 0 0.25rem 1rem rgb(0 0 0 / 6%);
+}
+
+.event-card--featured { border-top: 4px solid var(--jasmin-pink); }
+
+/* ========================================================================
+   SECTION 3 — EVENT IMAGES AND FULL-SIZE POP-UP
+   ======================================================================== */
+.event-card__image-button {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  min-height: 0;
+  color: inherit;
+  background: var(--jasmin-soft);
+  cursor: zoom-in;
+  font-size: 0;
+  line-height: 0;
+}
+
+.event-card__image-button:focus-visible {
+  outline: 3px solid var(--jasmin-teal);
+  outline-offset: -3px;
+}
+
+.event-card__image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: var(--jasmin-soft);
+}
+
+.event-lightbox {
+  width: auto;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+  padding: 2.75rem 0 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.event-lightbox::backdrop { background: rgb(0 0 0 / 82%); }
+
+.event-lightbox__image {
+  display: block;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100dvh - 5rem);
+  object-fit: contain;
+  background: #fff;
+}
+
+.event-lightbox__close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: rgb(0 0 0 / 70%);
+  cursor: pointer;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+/* ========================================================================
+   SECTION 4 — EVENT TEXT, DETAILS AND CALL-TO-ACTION BUTTON
+   ======================================================================== */
+.event-card__content { padding: 1.25rem; }
+
+.event-card__title {
+  margin: 0 0 0.55rem;
+  font-family: inherit;
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.event-card__details {
+  margin: 0 0 0.9rem;
+  color: var(--jasmin-muted);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.event-card__description { margin: 0 0 1.15rem; }
+
+.event-card__link {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.7rem 1.5rem;
+  border-radius: 999px;
+  color: #000 !important;
+  background: var(--jasmin-pink);
+  font-size: 1rem;
+  font-weight: 400;
+  text-decoration: none;
+}
+
+.event-card__link:hover,
+.event-card__link:focus-visible {
+  color: #000 !important;
+  background: var(--jasmin-pink-dark);
+  text-decoration: none !important;
+}
+
+.event-card__link:focus-visible {
+  outline: 3px solid rgb(40 188 174 / 45%);
+  outline-offset: 3px;
+}
+
+/* ========================================================================
+   SECTION 5 — EMPTY/ERROR MESSAGES AND LATER EVENTS
+   ======================================================================== */
+.feed-message {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  background: var(--jasmin-soft);
+}
+
+.feed-message--error { color: #7a2525; background: #fff0f0; }
+
+.later-events {
+  grid-column: 1 / -1;
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--jasmin-border);
+  padding-top: 1rem;
+}
+
+.later-events__summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--jasmin-teal-dark);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.later-events__summary:hover { text-decoration: underline; }
+
+.later-events__grid {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 1.25rem;
+}
+
+/* ========================================================================
+   SECTION 6 — TABLET AND DESKTOP LAYOUT
+   ======================================================================== */
+@media (min-width: 44rem) {
+  .event-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+  .event-card__content { padding: 1.5rem; }
+  .later-events__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+}
+
+/* PRIVATE AGENDA MANAGEMENT PAGE */
 /* ========================================================================
    SECTION 1 — BRAND COLOURS, PAGE WIDTH AND BASIC CONTROLS
    ======================================================================== */
